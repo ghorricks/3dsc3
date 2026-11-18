@@ -404,6 +404,7 @@ net_try:    call net_unlink                                    ; old reply out o
             call net_exec : or a : jr nz,.e
             nextreg REG_MMU6,NET_PG
             call net_rd
+            push af : call net_unlink : pop af                 ; the reply is in memory: no scratch file left on the card
             or a
 .e:         ret
 net_unlink: nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
