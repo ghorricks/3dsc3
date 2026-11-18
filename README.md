@@ -22,7 +22,7 @@ menu and track screens (`s_ver` in main.asm - update it with every delivered bui
 - Race ends when a car completes the chosen laps (winner shown); practice ends when the 3:00 countdown reaches zero.
 
 ## Session flow (build 26111709)
-Practice (3:00 countdown, lap times in the top row) -> results screen (#1..#4 by best lap) -> SPACE -> race: grid, traffic light (red, yellow, green, cars held until green), top row shows each car's position and laps remaining ("1  3L") with 1234 in the middle in the colours of the cars in those places -> race results -> menu. LAPS = PRACTICE ONLY skips the race. Symbol Shift + Space ends a practice or race early. Enter / pad START abandons to the menu.
+Practice (3:00 countdown, lap times in the top row) -> results screen (#1..#4 by best lap) -> SPACE -> race: grid, traffic light (red, yellow, green, cars held until green), top row shows each car's position and laps remaining ("1  3L") with 1234 in the middle in the colours of the cars in those places -> race results -> menu. LAPS = PRACTICE ONLY skips the race. Enter, pad START or BREAK opens the CONTINUE / END RACE / QUIT menu.
 Car graphics are stored as nibbles (80 bytes per heading) and unpacked per car per frame.
 
 ## Best laps (build 26111714)

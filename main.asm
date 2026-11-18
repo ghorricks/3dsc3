@@ -61,9 +61,7 @@ session:
         cp 1 : jp nz,.quit
         jp .over
 .nq:
-        call end_in                                 ; Symbol Shift + Space ends the session early
-        jr nz,.over
-        ld bc,$FEFE : in a,(c) : bit 0,a : jr nz,.np  ; BREAK (Caps Shift + Space): pause
+        ld bc,$FEFE : in a,(c) : bit 0,a : jr nz,.np  ; BREAK (Caps Shift + Space): the same menu as ENTER / START
         ld b,$7F : in a,(c) : bit 0,a : jr nz,.np
         call game_keys : jr nz,.np                  ; (ghost key presses while driving are not BREAK)
 .bw:    call wait_frame                             ; BREAK does what ENTER / START does (the menu pauses the race): let go of it first
@@ -1470,7 +1468,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111845",0
+s_ver: db "26111846",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
