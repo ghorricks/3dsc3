@@ -36,6 +36,9 @@ int main(int argc,char**argv){
   struct{char k;int s,l;} ks[64]; int nk=0; for(int i=4;i<argc&&nk<64;i++){ char c; int s,l; if(sscanf(argv[i],"%c:%d:%d",&c,&s,&l)==3){ if(c=='_')c=' '; if(c=='#')c='\n'; ks[nk].k=c;ks[nk].s=s;ks[nk].l=l;nk++; } }
   for(int fr=0;fr<total;fr++){
     memset(keyrow,0xFF,8);
+    if(getenv("AUTOSTATE")){ static int hold=0, cool=0, np=0, skipf=-1; int y=0,y2=0; for(int c=10;c<22;c++){ uint8_t at=mem[0x5800+17*32+c]; if((at&7)==6&&((at>>3)&7)==0) y++; at=mem[0x5800+16*32+c]; if((at&7)==6&&((at>>3)&7)==0) y2++; } if(y2<9) y=0;
+      if(hold>0){ keyrow[7]&=~1; hold--; } else if(cool>0) cool--; else if(fr>40&&y>=6){ hold=40; cool=300; np++; int lp=getenv("LONGPRESS")?atoi(getenv("LONGPRESS")):-1; skipf=fr+(np==lp?100000:(getenv("SKIPN")?atoi(getenv("SKIPN")):300)); fprintf(stderr,"press %d at frame %d\n",np,fr); }
+      if(skipf>=0 && fr>=skipf && fr<skipf+60){ keyrow[7]&=~1; keyrow[7]&=~2; } }
     if(getenv("AUTOSPACE")){ int n=atoi(getenv("AUTOSPACE")); if(fr>=60 && (fr-60)%n<40) keyrow[7]&=~1; }
     for(int i=0;i<nk;i++) if(fr>=ks[i].s&&fr<ks[i].s+ks[i].l) for(int j=0;j<sizeof keys/sizeof*keys;j++) if(keys[j].k==ks[i].k) keyrow[keys[j].row]&=~(1<<keys[j].bit);
     unsigned long end=z.cyc+69888; z80_gen_int(&z,0xFF);

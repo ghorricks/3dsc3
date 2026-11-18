@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-EXACT={1,2,3}
+EXACT={1,2,3,4}
 PATHS={}
 info=json.load(open(B+"tracks.json"))
 NH=32
