@@ -22,7 +22,7 @@ static uint8_t pin(z80*z,uint8_t lo){ uint16_t p=(z->b<<8)|lo;
 static void pout(z80*z,uint8_t lo,uint8_t v){ uint16_t p=(z->b<<8)|lo;
   if(p==0x243B) nsel=v; else if(p==0x253B) nreg(nsel,v);
   else if(lo==0x57){ spr[sprn++&7]=v; } else if(lo==0x5B) patcount++;
-  else if(p==0xFFFD) ayreg=v&15; else if(p==0xBFFD) ay[ayreg]=v; }
+  else if(p==0xFFFD) ayreg=v&15; else if(p==0xBFFD){ ay[ayreg]=v; if(getenv("AYLOG")) printf("AY f%d r%d=%d\n",frames,ayreg,v); } }
 static unsigned symaddr(const char*n){ FILE*f=fopen("build/main.sym","r"); char l[256],nm[128]; unsigned a;
   while(fgets(l,256,f)){ if(sscanf(l,"%127[^:]: EQU 0x%x",nm,&a)==2 && !strcmp(nm,n)){fclose(f);return a;} } fclose(f); fprintf(stderr,"no sym %s\n",n); exit(2);}
 static void dump(const char*fn){ FILE*f=fopen(fn,"wb"); fprintf(f,"P6 256 192 255\n");
@@ -54,6 +54,7 @@ int main(int argc,char**argv){
       else printf("esx unknown %02X\n",fn); }
     else if(getenv("UPDT") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("hs_update"); }
     else if(getenv("UPDT") && (pc==symaddr("pg_update.k1")||pc==symaddr("ud_fail")+0*1) && !upd_hit++ ){ printf("UPDATE reached %04X frames %d\n",pc,frames); if(pc==symaddr("pg_update.k1")) frames=4+accel_frames+40; }
+    else if(getenv("MUSLOG") && pc==symaddr("menu_run.loop") && frames>=atoi(getenv("MUSLOG"))){ frames=4+accel_frames+40; }
     else if(getenv("MENUSHOT") && pc==symaddr("menu_run.loop") && !ms_done && (ms_done=1)){ dump(getenv("MENUSHOT")); frames=4+accel_frames+40; }
     else if(getenv("INSTR") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("menu_instr"); }
     else if(getenv("INSTR") && pc==symaddr("pg_instr.w2") && !ms_done && (ms_done=1)){ dump("build/instr.ppm"); frames=4+accel_frames+40; }
@@ -73,10 +74,11 @@ int main(int argc,char**argv){
     if(z.pc==wf_addr && frames>40){ if(last_exit){ unsigned long w=z.cyc-last_exit; wsum+=w; wn++; if(w>wmax)wmax=w; if(w>(getenv("SPK")?atol(getenv("SPK")):600000)) printf("SPIKE f%d w=%lu\n",frames,w); } }
     if(frames!=wf_lastf){ wf_lastf=frames; last_exit=z.cyc; }
     if(frames!=lastf){ lastf=frames;
-      int sf=4;
+      int sf=getenv("MUSLOG")?100000:4;
       if(getenv("MSEL")&&frames==30) dump("build/hs.ppm");
       if(frames==3 && !phase){ dump("build/test_select.ppm"); phase=1; }
       padval=0;
+      if(getenv("MUSPOKE")&&frames==3){ int pg,pt; sscanf(getenv("MUSPOKE"),"%d,%d",&pg,&pt); wr(0,symaddr("mus_pg"),pg); wr(0,symaddr("mus_ptr"),pt&255); wr(0,symaddr("mus_ptr")+1,pt>>8); }
       if(frames==1){ wr(0,symaddr("ctl"),0); wr(0,symaddr("ctl")+1,6); wr(0,symaddr("ctl")+2,6); wr(0,symaddr("ctl")+3,6); wr(0,symaddr("menu_sel"),getenv("MSEL")?atoi(getenv("MSEL")):0); wr(0,A_TI,trk); wr(0,symaddr("difficulty"),getenv("DIFF")?atoi(getenv("DIFF")):0); }
       if(frames>=sf && frames<=sf+2) padval=0x80;
       if(getenv("PADDWN")&&frames>=20&&frames<=22) padval=0x04;

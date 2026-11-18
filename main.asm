@@ -23,11 +23,13 @@ start:
 
 ; ------------------------------------------------------------------ menu
 menu:
+        call mus_resume                 ; music plays on every screen but the race
         call menu_run                   ; returns when START is chosen
         xor a : ld (phase),a            ; every visit starts with practice
 ; ------------------------------------------------------------------ practice / race session
 session:
         call hs_pre                     ; online best laps, fetched once per round before the track is drawn
+        call mus_off                    ; the race screen has the engines, not the tune
         ld a,4 : out ($FE),a : nextreg $4A,$14      ; green border
         call get_meta
         call load_palette
@@ -76,7 +78,8 @@ session:
         call cpu_sound
 .held:  call check_end
         ld a,(race_over) : or a : jp z,.frame
-.over:  call show_results
+.over:  call mus_resume
+        call show_results
         ld a,(phase) : or a : jr z,.pr
         ld a,(nxt_flag) : or a : jp z,menu          ; race over: MAIN MENU ...
         ld a,(track_idx) : inc a : cp 24 : jr c,.nt  ; ... or the NEXT TRACK, starting with its practice
@@ -300,7 +303,8 @@ wait_frame:                                         ; wait for raster line 192
         cp 192 : jr nz,.w1
 .w2:    ld a,$1F : out (c),a : inc b : in a,(c) : dec b
         cp 192 : jr z,.w2
-        ret
+        ld a,(mus_on) : or a : ret z
+        jp mus_tick                                         ; menu music: one AY frame per screen frame outside the race
 
 clear_screen:
         ld a,18
@@ -1275,6 +1279,56 @@ cpu_sound:
 cs_k:   db 0
 snd_lead: dw 0
 
+; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG mapped at $C000)
+MUS_PG      equ 84
+mus_on:     db 0
+mus_pg:     db MUS_PG
+mus_ptr:    dw $C000
+mus_i:      db 0
+            ALIGN 16
+mus_sh:     ds 16                                           ; shadow of the AY registers the tune has written
+
+mus_resume:                                                 ; (re)start: put every register the tune owns back, then carry on where it was
+        ld hl,mus_sh : ld d,0 : ld b,13
+.r:     ld e,(hl) : inc hl
+        ld a,d : push hl : push bc : call ay_write : pop bc : pop hl
+        inc d : djnz .r
+        ld a,1 : ld (mus_on),a
+        ret
+
+mus_off:                                                    ; race screen: silence the tune, the engine sound takes the chip
+        xor a : ld (mus_on),a
+        ld e,0 : ld a,8 : call ay_write
+        ld e,0 : ld a,9 : call ay_write
+        ld e,0 : ld a,10 : call ay_write
+        jp ay_init
+
+mus_tick:                                                   ; one 50 Hz frame of the tune; leaves slot 6 as it found it
+        push bc : push de : push hl
+        ld bc,PORT_NEXTREG_SEL : ld a,REG_MMU6 : out (c),a : inc b : in a,(c)
+        push af                                             ; the page that was in slot 6
+.rd:    ld a,(mus_pg) : nextreg REG_MMU6,a
+        ld hl,(mus_ptr)
+        ld e,(hl) : inc hl : ld d,(hl) : inc hl
+        bit 7,d : jr z,.nn
+        ld a,(mus_pg) : inc a : ld (mus_pg),a
+        ld hl,$C000 : ld (mus_ptr),hl : jr .rd              ; this frame continues on the next page
+.nn:    bit 6,d : jr z,.go
+        ld a,MUS_PG : ld (mus_pg),a
+        ld hl,$C000 : ld (mus_ptr),hl : jr .rd              ; end of the tune: round again
+.go:    xor a : ld (mus_i),a
+.l:     srl d : rr e : jr nc,.n
+        ld a,(hl) : inc hl
+        ld b,a                                              ; B = value
+        ld a,(mus_i) : ld c,a                               ; C = register
+        push hl : ld hl,mus_sh : add a,l : ld l,a : ld (hl),b : pop hl
+        push de : ld a,c : ld e,b : call ay_write : pop de
+.n:     ld a,(mus_i) : inc a : ld (mus_i),a : cp 14 : jr nz,.l
+        ld (mus_ptr),hl
+        pop af : nextreg REG_MMU6,a
+        pop hl : pop de : pop bc
+        ret
+
 ; ----------------------------------------------------------------- sound
 ay_write:                                           ; A = reg, E = value
         ld bc,PORT_AY_REG : out (c),a
@@ -1365,7 +1419,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111842"
+s_ver: db "26111843",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1490,6 +1544,8 @@ code_end:
             INCLUDE "src/insdata.asm"
 car_pat:    INCBIN "build/cars.bin"
             INCLUDE "src/p81.asm"                   ; 32 headings x 80 bytes (the page holding the logo has room: main code was running past $BFFF)
+
+            INCLUDE "build/music.inc"
 
             SAVENEX OPEN "stockcar.nex", start, dc_lut
             SAVENEX CORE 3,1,5
