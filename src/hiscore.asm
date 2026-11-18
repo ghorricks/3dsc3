@@ -915,9 +915,8 @@ pg_update:
         ld hl,s_ud5 : ld c,12 : call print_cen
         ld a,PROMPT_C : ld (txt_fg),a
         ld hl,s_ud6 : ld c,15 : call print_cen
-        ld bc,$00FE
-.k0:    in a,(c) : cpl : and 31 : jr nz,.k0                     ; keys up
-.k1:    in a,(c) : cpl : and 31 : jr z,.k1                      ; any key
+.k0:    call ud_any : jr nz,.k0                                 ; everything up
+.k1:    call ud_any : jr z,.k1                                  ; any key or fire
         nextreg $02,1                                           ; soft reset
 .hl:    jr .hl
 ud_bad: call sv_close
@@ -929,6 +928,8 @@ ud_fail:
         ld b,120
 .w:     push bc : call wait_frame : pop bc : djnz .w
         ret
+ud_any: ld bc,$00FE : in a,(c) : cpl : and 31 : ret nz                  ; NZ when a key or a pad button is down
+        call menu_in : and 1<<BST : ret
 ud_ren:                                                         ; IX = from, DE = to -> carry on failure
         nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
         ld a,'*' : rst 8 : db $B0 : ret
@@ -982,7 +983,7 @@ s_ud1:      db "DOWNLOADING THE UPDATE",0
 s_ud3:      db "DO NOT SWITCH OFF",0
 s_ud4:      db "UPDATE DOWNLOADED",0
 s_ud5:      db "LOAD IT TO PLAY THE NEW BUILD",0
-s_ud6:      db "PRESS ANY KEY TO RESTART",0
+s_ud6:      db "PRESS ANY KEY OR FIRE TO EXIT",0
 s_ud7:      db "UPDATE FAILED",0
 ud_fn:      ds 20
 ud_sz:      ds 3
