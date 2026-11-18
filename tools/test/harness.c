@@ -47,7 +47,7 @@ int main(int argc,char**argv){
       else if(fn==0x9E){ int L=(z.b<<8)|z.c; for(int i=0;i<L;i++) fputc(rd(0,z.ix+i),ef); printf("esx write %d\n",L); }
       else if(fn==0x9B){ fclose(ef); }
       else if(fn==0x8F){ char cmd[200]; int i=0; unsigned hl=z.ix; for(;i<199&&(cmd[i]=rd(0,hl+i));i++); printf("http: f%d ix=%04X mmu7=%d tbl=%02X%02X%02X %s\n",frames,z.ix,mmu[7],ram[80*8192],ram[80*8192+1],ram[80*8192+5],cmd);
-        if(getenv("NETFAIL")){ z.cf=1; z.a=9; } else { const char*rsp=strstr(cmd,"name=")?"OK\n":strstr(cmd,"track=all")?"1,GAAAA,14.2\n1,GAVIN,14.5\n1,ETHAN,15.6\n1,3DSC3,99.9\n2,GAV  ,10.8\n2,GAVIN,11.9\n2,3DSC3,99.8\n3,DAD  ,18.5\n3,3DSC3,99.8\n24,ZED  ,60.1\n":"---\nGAVIN,42.3\nSPEED,42.5\nBLUE,100.0\n---\n"; if(strstr(cmd,"-f 3DSC3.TMP")){ FILE*tf=fopen("build/3DSC3.TMP","wb"); fputs(rsp,tf); fclose(tf); } } }
+        if(getenv("NETFAIL")){ z.cf=1; z.a=9; } else { const char*rsp=strstr(cmd,"?version")?(getenv("OLDV")?"26111001,releases/old.nex,1,0\n":"26111999,releases/3DSC3_26111999.nex,442880,00000000\n"):strstr(cmd,"name=")?"OK\n":strstr(cmd,"track=all")?"1,GAAAA,14.2\n1,GAVIN,14.5\n1,ETHAN,15.6\n1,3DSC3,99.9\n2,GAV  ,10.8\n2,GAVIN,11.9\n2,3DSC3,99.8\n3,DAD  ,18.5\n3,3DSC3,99.8\n24,ZED  ,60.1\n":"---\nGAVIN,42.3\nSPEED,42.5\nBLUE,100.0\n---\n"; if(strstr(cmd,"-f 3DSC3.TMP")){ FILE*tf=fopen("build/3DSC3.TMP","wb"); fputs(rsp,tf); fclose(tf); } } }
       else if(fn==0xAD){ remove("build/3DSC3.TMP"); }
       else printf("esx unknown %02X\n",fn); }
     else if(pc==a_pgc && (cho_hit=1)&&0){}

@@ -18,7 +18,8 @@ pg_init:                                            ; every record starts as 3DS
 .mp:    pop hl
 .mn:    ld de,5 : add hl,de : djnz .mg
 .md:
-        jp net_sync                                 ; and any that never reached the server
+        call net_sync                               ; and any that never reached the server
+        jp pg_vcheck                                ; and is there a newer build?
 hs_def: db "3DSC3",$E7,$03,1
 HS_NAMES    equ HS_ENT+1920                         ; the four players' names (5 character indices each) are saved with the table
 pn_tab      equ HS_NAMES
@@ -307,6 +308,31 @@ s_c5:       db " -f 3DSC3.TMP",0
 s_c2:       db " -u /?track=",0
 s_all:      db "all",0
 nb_all:     db 0
+nb_ver:     db 0
+s_cv:       db " -u /?version",0
+s_chk:      db "CHECKING FOR UPDATES...",0
+
+; --- once at start: the server's version.txt ("26111830,releases/....nex,size,crc") says which build is newest
+pg_vcheck:
+        xor a : ld (upd_flag),a
+        ld a,3 : ld (txt_fg),a : ld hl,s_chk : ld c,12 : call print_cen
+        ld a,1 : ld (nb_ver),a
+        call net_clear : call nb_base : call nb_end
+        call net_try                                       ; one attempt only: nobody should wait long for this
+        ld b,a : xor a : ld (nb_ver),a : ld (fr_x),a : ld (fr_c),a
+        ld a,96 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,8 : ld (fr_h),a
+        push bc : call fill_rect : pop bc                  ; wipe the message
+        ld a,b : or a : ret nz
+        nextreg REG_MMU6,NET_PG
+        ld hl,$C000 : ld de,upd_ver : ld b,8
+.c:     ld a,(hl) : sub '0' : cp 10 : ret nc
+        add a,'0' : ld (de),a : inc hl : inc de : djnz .c
+        ld hl,upd_ver : ld de,s_ver : ld b,8               ; compare with this build
+.k:     ld a,(de) : cp (hl) : jr c,.new
+        ret nz
+        inc hl : inc de : djnz .k
+        ret
+.new:   ld a,1 : ld (upd_flag),a : ret
 s_c3:       db "&name=",0
 s_c4:       db "&time=",0
 
@@ -323,7 +349,9 @@ nb_put:     ld a,(hl) : or a : ret z
             ld (de),a : inc hl : inc de : jr nb_put
 nb_base:    ld de,nb : ld hl,s_c1 : call nb_put
             ld hl,net_host : call nb_put
-            ld hl,s_c2 : call nb_put
+            ld a,(nb_ver) : or a : jr z,.nv
+            ld hl,s_cv : jp nb_put                              ; ?version: the newest build number and where to get it
+.nv:        ld hl,s_c2 : call nb_put
             ld a,(nb_all) : or a : jr z,.num
             ld hl,s_all : jp nb_put                            ; ?track=all: every table in one reply
 .num:       ld a,(ns_t) : inc a : ld b,'0'

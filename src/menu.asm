@@ -13,6 +13,9 @@ menu_run:
         ld a,3 : ld (txt_fg),a                      ; bottom centre: VERSION : build
         ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
         ld b,17 : ld c,23 : ld hl,s_ver : call print_at
+        ld a,(upd_flag) : or a : jr z,.nu0
+        ld a,PROMPT_C : ld (txt_fg),a : ld hl,upd_msg : ld c,4 : call print_cen    ; a newer build is on the server
+.nu0:
         call menu_draw
         call menu_in : ld (prev_in),a
 .loop:  call wait_frame

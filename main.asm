@@ -1341,6 +1341,10 @@ hs_bflip:       call hs_on : call pg_bflip : jp hs_off
 hs_sync:        call hs_on : call pg_sync : jp hs_off
 hs_pname:       call hs_on : call pg_pname : jp hs_off             ; A = car -> HL = its player name (pn_buf)
 pn_buf:         ds 6
+upd_flag:       db 0                                              ; 1 = the server has a newer build than this one
+upd_msg:        db "UPDATE AVAILABLE "
+upd_ver:        ds 8                                              ; its build number (one string with upd_msg)
+                db 0
 hs_check_all:   call hs_on : call pg_check : push af : call hs_off : pop af : ret
 nb:             ds 160                                           ; dot command line: must stay visible while the OS runs
 hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL = command line): the OS memory layout back first,
@@ -1354,7 +1358,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111829",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
+s_ver: db "26111830",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
