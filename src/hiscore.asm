@@ -544,6 +544,7 @@ sv_name:    db "3DSC3.SAV",0
 
 ; ---- instructions screen (moved here to free main code space)
 pg_instr:
+        nextreg REG_MMU6,LOGO_PG                       ; the texts are in the logo page, at $C000+
         call clear_screen
         ld a,3 : ld (txt_fg),a
         ld b,10 : ld c,1 : ld hl,s_ins0 : call print_at
@@ -562,19 +563,7 @@ pg_instr:
 .w3:    call wait_frame : call menu_in : or a : jr nz,.w3
         ret
 
-ins_tab:  dw i1,i2,i3,i4,ib,i5,i6,i7,i8,ib,i9,i10,0
-i1:  db "KEY & JOY CONTROLS",0
-i2:  db "Q=ACCEL  A=BRAKE/REVERSE",0
-i3:  db "O=LEFT P=RIGHT",0
-i4:  db "SPACE=BOOST",0
-i5:  db "KEMP : 6 BUTTON CONTROLS:",0
-i6:  db "A/B=ACCELERATE",0
-i7:  db "C=BRAKE DOWN=REVERSE UP=BOOST",0
-i8:  db "1 BOOST EARNED FOR EACH LAP",0
-i9:  db "BOOST: 1.5X SPEED FOR 2 SECS",0
-i10: db "ENTER OR START LEAVES A RACE",0
-ib:  db 0
-i11: db "PRESS FIRE TO RETURN",0
+
 
 
 ; ---- race screen, bottom right: L BEST (local) / O BEST (online), swapped every 5 seconds
@@ -911,10 +900,22 @@ pg_update:
         ld a,(sv_h) : ld ix,ud_buf : ld bc,1 : rst 8 : db $9D : jp c,ud_bad    ; ... and nothing after it
         ld a,b : or c : jp nz,ud_bad
         call sv_close
+        ld hl,ud_fn : ld (ud_show),hl
+        call ud_unlink_old                                      ; 3DSC3.OLD out of the way
+        ld ix,ud_nex : ld de,ud_old : call ud_ren               ; the current 3DSC3.NEX (if that is its name) becomes 3DSC3.OLD
+        ld a,0 : rla : xor 1 : ld (ud_had),a                    ; 1 = there was one, now 3DSC3.OLD
+        ld ix,ud_fn : ld de,ud_nex : call ud_ren                ; the new one becomes 3DSC3.NEX
+        jr c,.nr
+        ld hl,ud_nex : ld (ud_show),hl
+        call ud_unlink_old                                      ; and the old one is deleted
+        jr .rd
+.nr:    ld a,(ud_had) : or a : jr z,.rd                          ; could not rename: put the old one back, show the long name
+        ld ix,ud_old : ld de,ud_nex : call ud_ren
+.rd:
         call clear_screen
         ld a,3 : ld (txt_fg),a
         ld hl,s_ud4 : ld c,8 : call print_cen
-        ld hl,ud_fn : ld c,10 : call print_cen
+        ld hl,(ud_show) : ld c,10 : call print_cen
         ld hl,s_ud5 : ld c,12 : call print_cen
         ld a,PROMPT_C : ld (txt_fg),a
         ld hl,s_ud6 : ld c,15 : call print_cen
@@ -932,6 +933,16 @@ ud_fail:
         ld b,120
 .w:     push bc : call wait_frame : pop bc : djnz .w
         ret
+ud_ren:                                                         ; IX = from, DE = to -> carry on failure
+        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
+        ld a,'*' : rst 8 : db $B0 : ret
+ud_unlink_old:
+        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
+        ld a,'*' : ld ix,ud_old : rst 8 : db $AD : ret
+ud_nex:     db "3DSC3.NEX",0
+ud_old:     db "3DSC3.OLD",0
+ud_show:    dw 0
+ud_had:     db 0
 ud_unlink:
         nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
         ld a,'*' : ld ix,ud_fn : rst 8 : db $AD : ret

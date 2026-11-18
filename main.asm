@@ -1365,7 +1365,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111833",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
+s_ver: db "26111834",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1487,6 +1487,7 @@ code_end:
             MMU 6, 81
             ORG $C000
             INCBIN "build/logo.bin"
+            INCLUDE "src/insdata.asm"
 car_pat:    INCBIN "build/cars.bin"                   ; 32 headings x 80 bytes (the page holding the logo has room: main code was running past $BFFF)
 
             SAVENEX OPEN "stockcar.nex", start, dc_lut
