@@ -38,10 +38,10 @@ init_cpu:                                           ; set up the four cars from 
         cp 7 : jr nc,.md
         ld b,1 : cp 6 : jr c,.md
         ld b,2
-        ld a,(track_idx) : cp 4 : jr c,.md            ; lane paths exist for tracks 1 to 4
+        ld a,(track_idx) : cp 6 : jr c,.md            ; lane paths exist for tracks 1 to 6
         ld b,0                                        ; no lane path on this track yet: the computer sits out
 .md:    ld (ix+23),b
-        ld (ix+14),$E7 : ld (ix+15),3 : ld (ix+18),$18 : ld (ix+19),$FC     ; best 99.9, line distance far behind
+        ld (ix+14),$0F : ld (ix+15),$27 : ld (ix+18),$18 : ld (ix+19),$FC     ; best 99.9, line distance far behind
         ld a,b : or a : jp z,.nx
         call grid_pos
         ld a,(difficulty) : add a,a : add a,a : add a,c : ld e,a : ld d,0
@@ -52,7 +52,10 @@ init_cpu:                                           ; set up the four cars from 
 .nt2:   ld a,(difficulty) : cp 3 : jr nz,.nt3
         ld (ix+11),255                                ; EXPERT: every car as fast as the player
 .nt3:   ld a,(ix+23) : cp 1 : jr z,.hum
-        call nearest_wp : ld (ix+6),a                 ; computer car: first waypoint of its lane
+        call nearest_wp : ld d,a                      ; computer car: first waypoint of its lane
+        ld a,(npts) : srl a : cp d : ld a,d : jr nc,.fw
+        xor a                                         ; a grid slot behind the line is nearest to the END of the lap path: it starts at waypoint 0, not by driving the loop backwards
+.fw:    ld (ix+6),a
         jr .nx
 .hum:   pop bc : push bc                              ; C = slot again (grid_pos etc. changed it: the cars all shared one context!)
         ld a,c : ld d,a : ld e,PCS : mul d,e : ld hl,hctx : add hl,de : ld (ix+26),l : ld (ix+27),h
@@ -68,6 +71,7 @@ grid_centre:                                        ; the start point can sit ne
         inc a : ld (gc_ok),a
         ld a,(sl_h) : add a,8 : and 31 : call gc_march : ld (gc_a),a
         ld a,(sl_h) : sub 8 : and 31 : call gc_march : ld b,a
+        ld a,(gc_a) : add a,b : ld (gc_w),a             ; width of the road across the line
         ld a,(gc_a) : sub b : sra a : ld (gc_off),a   ; (free steps one way - the other way) / 2
         ret
 gc_march:                                           ; A = heading -> A = free steps from the start point
@@ -83,10 +87,13 @@ gc_march:                                           ; A = heading -> A = free st
 gc_ok:  db 0
 gc_a:   db 0
 gc_off: db 0
+gc_w:   db 0
 
 grid_calc:                                          ; C = slot -> g_x,g_y,gp_lat : two cars a row, rows behind the line
         call grid_centre
-        ld a,24 : ld (gp_lat),a
+        ld a,(gc_w) : cp 70 : ld a,24 : jr nc,.dl
+        ld a,18                                       ; a narrow road: the two cars of a row sit closer together
+.dl:    ld (gp_lat),a
 .try:   ld hl,(sl_x0) : ld (sl_x),hl : ld hl,(sl_y0) : ld (sl_y),hl
         ld a,(sl_h) : add a,16 : and 31 : call sl_vec
         ld a,(gp_lat) : or a : jr nz,.two
@@ -113,7 +120,7 @@ grid_calc:                                          ; C = slot -> g_x,g_y,gp_lat
 .nl:    ld a,(sl_x+1) : ld (g_x),a : ld a,(sl_y+1) : ld (g_y),a
         ld a,(g_y) : ld d,a : ld a,(g_x) : ld e,a : call solid_at : ret nc
         ld a,(gp_lat) : or a : jr z,.fb
-        cp 24 : ld a,14 : jr z,.set                   ; too tight: narrower grid, then single file
+        cp 15 : ld a,14 : jr nc,.set                  ; too tight: narrower grid, then single file
         xor a
 .set:   ld (gp_lat),a : jp .try
 .fb:    ld hl,(meta_ptr) : ld a,(hl) : ld (g_x),a : inc hl : ld a,(hl) : ld (g_y),a
@@ -136,7 +143,7 @@ draw_grid:                                          ; a "[" slot marking behind 
         ld a,c : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld a,(hl)
         cp 7 : jp nc,.nx                              ; UNWANTED: no slot
         cp 6 : jr c,.ok
-        ld a,(track_idx) : cp 4 : jp nc,.nx           ; computer cars only race on tracks 1 to 4 for now
+        ld a,(track_idx) : cp 6 : jp nc,.nx           ; computer cars only race on tracks 1 to 6 for now
 .ok:    call grid_calc
         ld a,(g_x) : ld (sl_x+1),a : ld a,(g_y) : ld (sl_y+1),a : ld a,$80 : ld (sl_x),a : ld (sl_y),a
         ld a,(sl_h) : add a,16 : and 31 : call sl_vec
@@ -445,13 +452,12 @@ cpu_lap:                                            ; line crossed with the lap 
         ld l,(ix+12) : ld h,(ix+13)
         ld de,300 : or a : sbc hl,de : jr c,.reset  ; ignore the short first stretch
         inc (ix+24)
+        ld a,(ix+24) : call bell_chk
         ld a,(ix+21) : cp 3 : jr nc,.nb             ; every timed lap banks a boost, as for the player
         inc a : ld (ix+21),a
 .nb:    ld a,1 : ld (hud_dirty),a
         add hl,de
-        ld de,0                                     ; frames -> tenths of a second (/5)
-.d5:    ld bc,5 : or a : sbc hl,bc : jr c,.dn
-        inc de : jr .d5
+        add hl,hl : ex de,hl                        ; frames -> hundredths of a second (x2)
 .dn:    ld h,d : ld l,e : call lap_flash                 ; show this lap time on the HUD for a while
         ld l,(ix+14) : ld h,(ix+15) : or a : sbc hl,de : jr c,.reset   ; not better than the best
         jr z,.reset

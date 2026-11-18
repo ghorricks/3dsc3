@@ -8,7 +8,8 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-EXACT={1,2,3,4}
+EXACT={1,2,3,4,5,6}
+CLOCKWISE={5,6}          # tracks the original runs clockwise round the screen
 PATHS={}
 info=json.load(open(B+"tracks.json"))
 NH=32
@@ -21,15 +22,15 @@ SURFACE=["tarmac","tarmac","gravel","tarmac","dirt","tarmac","sand","tarmac",
          "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac"]   # DEFAULT GUESS - edit me
 SURFRGB={0x49:(70,70,70),0xF9:(230,200,100),0xB6:(180,180,180),0x8D:(140,90,40)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
-def make_path(dist,solid,start,H,W,maxn=250):
+def make_path(dist,solid,start,H,W,maxn=250,wide=False):
     """lane centreline = least-cost route start -> far end of the lap, cost grows near walls; sampled every ~6 px, smoothed"""
     from skimage.graph import route_through_array
     sx,sy=start
     free=dist>=0
     clr=ndi.distance_transform_edt(~solid)
-    ok=free&(clr>=2.5)
+    ok=free&(clr>=(4.5 if wide else 2.5))
     if ok.sum()<free.sum()*0.2: ok=free&(clr>=1.5)
-    cost=np.where(ok,1.0+60.0/(clr+1.0)**2,1e6)
+    cost=np.where(ok,1.0+(400.0 if wide else 60.0)/(clr+1.0)**2,np.where(free,2000.0,1e9))   # narrow-but-reachable pixels are expensive, never the blocked strip behind the line
     dm=np.where(ok,dist,-1); ey,ex=np.unravel_index(int(np.argmax(dm)),dm.shape)
     route,_=route_through_array(cost,(sy,sx),(ey,ex),fully_connected=True,geometric=True)
     R=np.array(route,float)[:,::-1]                       # (x,y)
@@ -65,9 +66,14 @@ for n in range(1,25):
         for _i,_sl in enumerate(ndi.find_objects(_l),1):
             if (_l[_sl]==_i).sum()<=220 and _sl[0].start>0 and _sl[1].start>0 and _sl[0].stop<H and _sl[1].stop<W: base[_l==_i]=True
         base=skeletonize(base)
-        if n==4:                              # track 4: clean straight isometric fences fitted to the original
-            from fence4 import fence4
-            base=fence4(H,W); ground,k,how=ground_k(base,tuple(info[str(n)]["start"]))
+        if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
+            if n==4:
+                from fence4 import fence4 as _f
+            elif n==6:
+                from fence6 import mask6 as _f
+            else:
+                from fence5 import fence5 as _f
+            base=_f(H,W); ground,k,how=ground_k(base,tuple(info[str(n)]["start"]))
         if n==1:                              # wall tips: the original has plain pointed junctions, not loops
             from skimage.draw import line as _ln
             for (x0,y0,x1,y1) in ((192,88,220,112),(36,128,60,152)):
@@ -215,7 +221,7 @@ for n in range(1,25):
         else: groups.append([v])
     # counter-clockwise (as seen on screen) around the centre of the circuit
     gy_,gx_=np.nonzero(ground); cxm,cym=gx_.mean(),gy_.mean()*2
-    rx,ry=sx-cxm,sy*2-cym; tx,ty=ry,-rx                     # CCW tangent on a y-down screen
+    rx,ry=sx-cxm,sy*2-cym; tx,ty=(-ry,rx) if n in CLOCKWISE else (ry,-rx)      # CCW tangent on a y-down screen (CW for the tracks the original runs clockwise)
     gm=[(sum(v[0] for v in g),sum(v[1] for v in g)) for g in groups] or [(1,0)]
     pick=max(gm,key=lambda v:v[0]*tx+v[1]*ty)
     h0=int(round(math.atan2(pick[1],pick[0])/(2*math.pi/NH)))%NH
@@ -254,6 +260,7 @@ for n in range(1,25):
         zone=(along<-11)&(along>-40)&(perp<=40)&(dist>=0)
         BEHIND=int(dist[zone].max()) if zone.any() else -1
         return dc
+    if os.environ.get("DUMPP") and n==6: print("HEAD",head,h0,HEAD[head],sx,sy,cxm,cym)
     d=pbfs(head); dmax=int(d[d<255].max()); reach=int((d<255).sum())
     # ---- number board: pick the emptiest corner (cell coords, 4x2 cells, screen y = track y + 8)
     pan=panel_of(base)|ground
@@ -267,8 +274,9 @@ for n in range(1,25):
     # ---- bank: base plane | ground plane | progress map
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W)
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(n==6))
     PATHS[n]=(px,py)
+    if os.environ.get("DUMPP"): print("P",n,npts,px[:3],py[:3],px[-3:],py[-3:])
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
     page[0x3C00:0x3C00+npts]=bytes(px); page[0x3D00:0x3D00+npts]=bytes(py)
     ph=[]
@@ -298,6 +306,9 @@ with open(B+"speed.inc","w") as f:
 with open(B+"hvec.inc","w") as f:
     f.write("hcos:  db "+",".join(str(int(round(127*math.cos(a*2*math.pi/NH)))&255) for a in range(NH))+"\n")
     f.write("hsin:  db "+",".join(str(int(round(127*math.sin(a*2*math.pi/NH)))&255) for a in range(NH))+"\n")
+    R5=math.radians(-3.55)      # track 5: its fences run at -14.8 / 75.2 degrees, not on the 11.25-degree heading steps: start line and grid use turned vectors
+    f.write("hcos5: db "+",".join(str(int(round(127*math.cos(a*2*math.pi/NH+R5)))&255) for a in range(NH))+"\n")
+    f.write("hsin5: db "+",".join(str(int(round(127*math.sin(a*2*math.pi/NH+R5)))&255) for a in range(NH))+"\n")
 # ---- 3D car model: 16 headings, 16x16, anchor (8,12) = ground point. idx 1 top,2 light side,3 dark side,4 front/back,5 window,6 tyre,7 headlight,8 tail light
 def car_patterns():
     S=6; out=bytearray()

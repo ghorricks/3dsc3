@@ -1,14 +1,16 @@
 ; ===================================================================== best laps + online scores
 ; Lives in RAM page HS_PG, which is mapped at $E000 while any of this runs (the stubs in main.asm map it).
-; $E000-$E77F: 24 tracks x 10 entries x 8 bytes: name (5), time in tenths (2), synced flag (1 = on the server).
-; Code from $E800.  Local table is saved to 3DSC3.SAV; new records are sent to the online table with the .http dot command.
+; $E000-$E77F: 24 tracks x 10 entries x 8 bytes: name (5), time in hundredths of a second (2), synced flag (1 = on the server).
+; Code from $E7A0.  Local table is saved to 3DSC3.SAV; new records are sent to the online table with the .http dot command.
 HS_ENT      equ $E000
 
 pg_init:                                            ; every record starts as 3DSC3 99.9S
         ld de,HS_ENT : ld a,240
 .l:     push af : ld hl,hs_def : ld bc,8 : ldir : pop af : dec a : jr nz,.l
         ld hl,pn_def : ld de,pn_tab : ld bc,20 : ldir
+        xor a : ld (HS_MARK),a
         call sv_load                                ; records and player names saved by an earlier session
+        call hs_mig
         ld hl,pn_tab : ld b,4                       ; old saves hold PLAY1..PLAY4 as the unchosen name: back to a plain "A"
 .mg:    ld a,(hl) : cp 15 : jr nz,.mn
         push hl : inc hl : ld a,(hl) : cp 11 : jr nz,.mp
@@ -20,7 +22,18 @@ pg_init:                                            ; every record starts as 3DS
 .md:
         call net_sync                               ; and any that never reached the server
         jp pg_vcheck                                ; and is there a newer build?
-hs_def: db "3DSC3",$E7,$03,1
+hs_mig:     ld a,(HS_MARK) : or a : ret nz                   ; an older save: every time gets a zero appended (tenths -> hundredths)
+            inc a : ld (HS_MARK),a
+            ld ix,HS_ENT+5 : ld b,240
+.m:         ld l,(ix+0) : ld h,(ix+1) : ld de,999 : or a : sbc hl,de : jr nc,.d
+            add hl,de : ld d,h : ld e,l : add hl,hl : add hl,hl : add hl,de : add hl,hl
+            jr .s
+.d:         ld hl,9999
+.s:         ld (ix+0),l : ld (ix+1),h
+            ld de,8 : add ix,de : djnz .m
+            ret
+hs_def: db "3DSC3",$0F,$27,1
+HS_MARK     equ HS_ENT+1940                         ; 1 = the saved times are in hundredths (older saves hold tenths)
 HS_NAMES    equ HS_ENT+1920                         ; the four players' names (5 character indices each) are saved with the table
 pn_tab      equ HS_NAMES
 pn_def:     db 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36     ; just an "A" until a player types a name
@@ -69,7 +82,7 @@ pg_check:
         ld e,a : ld d,0 : ld hl,pos_ord : add hl,de : ld a,(hl) : ld (rs_slot),a
         ld e,a : ld hl,ctl : add hl,de : ld a,(hl) : cp 6 : jr nc,.n                 ; computer cars take no records
         ld a,(rs_slot) : ld d,a : ld e,CPU_SZ : mul d,e : ld hl,cpu_t+14 : add hl,de : ld e,(hl) : inc hl : ld d,(hl)
-        ld h,d : ld l,e : ld bc,999 : or a : sbc hl,bc : jr nc,.n                    ; no lap time
+        ld h,d : ld l,e : ld bc,9999 : or a : sbc hl,bc : jr nc,.n                   ; no lap time
         ld (hi_t),de
         call hs_rank
         cp 10 : jr nc,.n
@@ -245,7 +258,7 @@ pg_view:
         ld (hv_p),hl : ld a,' ' : call print_char
         ld a,20 : call pcol : ld (txt_fg),a          ; time in green
         ld hl,(hv_p) : ld e,(hl) : inc hl : ld d,(hl) : inc hl : inc hl : ld (hv_p),hl
-        ex de,hl : call print_tenths : ld a,'S' : call print_char
+        ex de,hl : call print_tenths
         ld hl,hv_i : inc (hl) : jp .r
 .dn:    ld a,(hv_n) : or a : jr nz,.pr
         ld hl,s_off : ld c,10 : call print_cen         ; online and nothing came back
@@ -398,8 +411,13 @@ net_fetch:  ld a,(oc_ok) : or a : jr nz,.use                        ; the online
             ld de,OC_ENT : add hl,de : pop af : ret
 .none:      ld hl,OC_ENT : xor a : ret
 net_run:    call net_try : ret z                                ; A = 0 when a reply arrived
+            ld a,(nb_all) : or a : call nz,net_retry                ; the machine is busy inside the WiFi command (nothing can animate): say it is trying again
             call net_try                                       ; the WiFi module sometimes drops a request: once more
             or a : ret
+net_wipe:   xor a : ld (fr_x),a : ld (fr_c),a : ld a,96 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,8 : ld (fr_h),a
+            jp fill_rect
+net_retry:  ld a,6 : ld (txt_fg),a                              ; second attempt: the same message again in another colour
+            ld hl,s_wait : ld c,12 : jp print_cen
 net_try:    call net_unlink                                    ; old reply out of the way
             call net_exec : or a : jr nz,.e
             nextreg REG_MMU6,NET_PG
@@ -463,10 +481,11 @@ np_rec:                                                         ; HL -> "NAME,SS
 .dg:        ld a,(hl) : cp '.' : jr z,.fr
             sub '0' : cp 10 : jr nc,.bad
             call add_dig : inc hl : jr .dg
-.fr:        xor a : call add_dig
-            inc hl : ld a,(hl) : sub '0' : cp 10 : jr c,.t
-            xor a
-.t:         ld l,a : ld h,0 : add hl,bc
+.fr:        inc hl : ld a,(hl) : sub '0' : cp 10 : jr nc,.z       ; two decimals: seconds -> hundredths
+            call add_dig : inc hl : ld a,(hl) : sub '0' : cp 10 : jr c,.t2
+.z:         xor a
+.t2:        call add_dig
+            ld h,b : ld l,c
             ex de,hl : ld (hl),e : inc hl : ld (hl),d
             or a : ret
 np_ln:      dw 0
@@ -486,7 +505,7 @@ net_sync:   xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
             ld ix,HS_ENT
 .tr:        ld b,10
 .en:        ld a,(ix+7) : or a : jr nz,.nx
-            ld l,(ix+5) : ld h,(ix+6) : ld de,999 : or a : sbc hl,de : jr nc,.nx          ; default 99.9 entries are not scores
+            ld l,(ix+5) : ld h,(ix+6) : ld de,9999 : or a : sbc hl,de : jr nc,.nx          ; default 99.99 entries are not scores
             push bc
             ld a,(sy_msg) : or a : jr nz,.go
             inc a : ld (sy_msg),a
@@ -519,8 +538,9 @@ net_post:   call net_clear                                      ; IX = entry of 
             pop ix
             ld hl,s_c4 : call nb_put
             ld l,(ix+5) : ld h,(ix+6)
-            ld bc,100 : call nb_dg : ld bc,10 : call nb_dg
+            ld bc,1000 : call nb_dg : ld bc,100 : call nb_dg
             ld a,'.' : ld (de),a : inc de
+            ld bc,10 : call nb_dg
             ld a,l : add a,'0' : ld (de),a : inc de
             call nb_end
             push ix : call net_run : pop ix
@@ -536,9 +556,9 @@ sv_open:    ld ix,sv_name
 sv_open2:   nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; the esxDOS trap wants ROM at 0000-3FFF
             ld a,'*' : rst 8 : db $9A : ret
 sv_load:    ld b,1 : call sv_open : ret c
-            ld (sv_h),a : ld ix,HS_ENT : ld bc,1940 : rst 8 : db $9D : jr sv_close
+            ld (sv_h),a : ld ix,HS_ENT : ld bc,1941 : rst 8 : db $9D : jr sv_close
 sv_save:    ld b,$0E : call sv_open : ret c                   ; write, create or truncate
-            ld (sv_h),a : ld ix,HS_ENT : ld bc,1940 : rst 8 : db $9E
+            ld (sv_h),a : ld ix,HS_ENT : ld bc,1941 : rst 8 : db $9E
 sv_close:   ld a,(sv_h) : rst 8 : db $9B : ret
 sv_h:       db 0
 sv_name:    db "3DSC3.SAV",0
@@ -557,7 +577,7 @@ pg_binit:
         xor a : ld (bs_mode),a : ld (bs_t),a : dec a : ld (bs_off),a
         call hs_ptr : ld de,bs_lname : ld bc,5 : ldir        ; the local best: who and how fast
         call pg_best : ld (bs_loc),hl
-        ld de,999 : or a : sbc hl,de : jr c,.l1
+        ld de,9999 : or a : sbc hl,de : jr c,.l1
         ld hl,bs_lname : call blank5
 .l1:    ld a,(oc_ok) : or a : jr z,.none
 .go:    call net_fetch                                  ; A = entries of this track, HL = first (best) entry
@@ -580,7 +600,7 @@ pg_bflip:                                            ; every 6 frames: 10 second
         cp 40 : jr c,.d
 .z:     xor a : jr .s
 .u:     sub 14 : jr .s
-.f:     ld a,5 : jr .s
+.f:     ld a,6 : jr .s
 .d:     ld b,a : ld a,39 : sub b
 .s:     ld hl,bs_off : cp (hl) : ret z
         ld (hl),a
@@ -591,19 +611,14 @@ pg_bdraw:                                            ; line "L BEST 14.7 NAME " 
         ld a,(bs_mode) : or a : ld hl,s_lbest : ld de,(bs_loc) : ld bc,bs_lname : jr z,.m
         ld hl,s_obest : ld de,(bs_onl) : ld bc,bs_oname
 .m:     ld (bs_v),de : ld (bs_np),bc
-        ld de,bs_line : ld bc,7 : ldir
-        ld ix,bs_line+7 : ld hl,(bs_v) : ld de,999 : or a : sbc hl,de : jr c,.v
-        ld (ix+0),'-' : ld (ix+1),'-' : ld (ix+2),'.' : ld (ix+3),'-' : jr .nm
-.v:     ld hl,(bs_v) : ld de,100 : ld c,'0'
-.h3:    or a : sbc hl,de : jr c,.h4
-        inc c : jr .h3
-.h4:    add hl,de : ld (ix+0),c : ld a,l : ld c,'0'
-.t:     sub 10 : jr c,.t2
-        inc c : jr .t
-.t2:    add a,10 : add a,'0' : ld (ix+3),a : ld (ix+1),c : ld (ix+2),'.'
-.nm:    ld (ix+4),' ' : ld hl,(bs_np) : ld de,bs_line+12 : ld bc,5 : ldir
+        ld de,bs_line : ld bc,7 : ldir                       ; DE = bs_line+7
+        ld hl,(bs_v) : push de : ld de,9999 : or a : sbc hl,de : pop de : jr c,.v
+        ld hl,s_dash : ld bc,5 : ldir : jr .nm
+.v:     ld hl,(bs_v) : call cs_fmt
+.nm:    ld a,' ' : ld (de),a : inc de
+        ld hl,(bs_np) : ld bc,5 : ldir
         xor a : ld (de),a
-        ld a,(bs_off) : cp 6 : jr c,.o
+        ld a,(bs_off) : cp 7 : jr c,.o
         xor a
 .o:     ld e,a : ld d,0 : ld hl,bs_line : add hl,de : ld de,bs_win : ld bc,12 : ldir
         xor a : ld (de),a
@@ -620,6 +635,7 @@ bs_v:    dw 0
 bs_np:   dw 0
 bs_lname: ds 5
 bs_oname: ds 5
+s_dash:  db "--.--"
 bs_line: ds 19
 bs_win:  ds 14
 bs_loc:  dw $FFFF
@@ -766,7 +782,7 @@ pg_choice:
 .nr3:   ld a,c : and $21 : jr z,.w
         ld a,(ch_sel) : xor 1 : ld (ch_sel),a : jp .dr
 .go:    xor a : ld (sc_on),a : ld (pl_on),a : ld a,(ch_sel) : xor 1 : ret
-s_blk2: db "              ",0
+s_blk2 equ s_blk3+6                                  ; 14 spaces: the tail of the 20
 ; --- records just set: their rows use palette entry 42, which pulses
 nw_tab:   ds 10
 nw_trk:   db 255

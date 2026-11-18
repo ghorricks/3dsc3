@@ -43,6 +43,7 @@ session:
         call draw_grid                  ; "[" slot markings behind each starting position
         call draw_best                  ; bottom right: the track's best lap
         call draw_trees
+        call hud_clear_old              ; nothing of the last race (places, flags, boosts, best laps) goes into the new top bar
         call hud_static
         call copy_l2_to_clean           ; board + grid + HUD labels become part of the clean copy
         call init_race
@@ -139,7 +140,7 @@ check_end:                                          ; race: a car that has run a
 fin_n:  db 0
 
 init_race:
-        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (snd_hit),a : ld (cs_k),a : ld (lt_s),a : ld (fr_cnt),a : ld (fin_n),a
+        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (snd_hit),a : ld (snd_cn),a : ld (bl_done),a : ld (bl_t),a : ld (cs_k),a : ld (lt_s),a : ld (fr_cnt),a : ld (fin_n),a
         call silence_all
         ld hl,180 : ld (cd_s),hl
         ld hl,0 : ld (lap_show),hl : ld (lap_show+2),hl
@@ -231,6 +232,7 @@ rank_update:
         ld a,(fr_cnt) : inc a : ld (fr_cnt),a : and 7 : ret nz
         call race_keys
         call rank_all
+        call merge_finished                                ; cars past the flag keep the place they finished in
         ld hl,pos_ord : ld de,pos_old : ld b,4 : ld c,0
 .c:     ld a,(de) : cp (hl) : jr z,.s
         inc c : ld a,(hl) : ld (de),a
@@ -871,22 +873,14 @@ update_lap:
 line_cross:                                         ; carry = the car has just crossed the drawn start line in the direction of travel
         ld a,(car_x+1) : ld l,a : ld h,0 : ld a,(sl_cx) : ld e,a : ld d,0 : or a : sbc hl,de : ld (lc_u),hl
         ld a,(car_y+1) : ld l,a : ld h,0 : ld a,(sl_cy) : ld e,a : ld d,0 : or a : sbc hl,de : add hl,hl : ld (lc_w),hl
-        ld hl,0 : ld de,(lc_u) : ld a,(sl_nc) : or a : jr nz,.c1
-        add hl,de : jr .c2
-.c1:    sbc hl,de
-.c2:    ld de,(lc_w) : ld a,(sl_ns) : or a : jr nz,.s1
-        add hl,de : jr .s2
-.s1:    sbc hl,de
-.s2:    push hl                                     ; HL = distance along the direction of travel from the line
-        ld hl,0 : ld de,(lc_u) : ld a,(sl_ns) : or a : jr z,.p1
-        add hl,de : jr .p2
-.p1:    sbc hl,de
-.p2:    ld de,(lc_w) : ld a,(sl_nc) : or a : jr nz,.q1
-        add hl,de : jr .q2
-.q1:    sbc hl,de
-.q2:    bit 7,h : jr z,.pa                          ; |across|
+        ld de,(lc_u) : ld a,(sl_ax) : call mulc : push hl
+        ld de,(lc_w) : ld a,(sl_ay) : call mulc : pop de : add hl,de
+        push hl                                     ; HL = distance along the direction of travel from the line
+        ld de,(lc_w) : ld a,(sl_ax) : call mulc : push hl
+        ld de,(lc_u) : ld a,(sl_ay) : call mulc : pop de : ex de,hl : or a : sbc hl,de     ; across the line = ax*w - ay*u
+        bit 7,h : jr z,.pa                          ; |across|
         xor a : sub l : ld l,a : ld a,0 : sbc a,h : ld h,a
-.pa:    ld de,100 : or a : sbc hl,de : ld a,0 : rla : xor 1 : ld c,a   ; C=1 when beyond the ends of the line
+.pa:    ld de,(sl_lim) : or a : sbc hl,de : ld a,0 : rla : xor 1 : ld c,a   ; C=1 when beyond the ends of the line
         pop hl
         ld de,(sl_prev) : ld (sl_prev),hl
         bit 7,d : jr z,.no                          ; was already past the line
@@ -895,12 +889,24 @@ line_cross:                                         ; carry = the car has just c
         ld a,1 : ld (lc_hit),a
         scf : ret
 .no:    or a : ret
+mulc:                                               ; HL = DE * A (A signed, |A| <= 4)
+        push bc
+        ld hl,0 : or a : jr z,.o
+        bit 7,a : jr nz,.ng
+        ld b,a
+.p:     add hl,de : djnz .p
+        jr .o
+.ng:    neg : ld b,a
+.m:     or a : sbc hl,de : djnz .m
+.o:     pop bc
+        ret
 lc_u: dw 0
 lc_w: dw 0
 
 lap_complete:
-        ld hl,(lap_tenths) : ld de,100 : or a : sbc hl,de : ret c   ; ignore laps < 10 s
+        ld hl,(lap_tenths) : ld de,1000 : or a : sbc hl,de : ret c  ; ignore laps < 10 s
         ld hl,laps_done : inc (hl)
+        ld a,(hl) : call bell_chk
         ld hl,(lap_tenths) : call lap_flash
         ld a,(boost_cnt) : cp 3 : jr nc,.nb                         ; each finish-line crossing banks a boost (max 3)
         inc a : ld (boost_cnt),a
@@ -914,11 +920,8 @@ lap_reset:
         inc a : ld (hud_dirty),a
         ret
 
-tick_lap:                                           ; the human car's own lap clock: 1 tick per 5 frames (tenths of a second)
-        ld a,(fcnt) : inc a : cp 5 : jr nc,.t
-        ld (fcnt),a : ret
-.t:     xor a : ld (fcnt),a
-        ld hl,(lap_tenths) : inc hl : ld (lap_tenths),hl
+tick_lap:                                           ; the human car's own lap clock: 2 hundredths of a second per frame (50 frames a second)
+        ld hl,(lap_tenths) : inc hl : inc hl : ld (lap_tenths),hl
         ret
 
 tick_time:                                          ; the practice countdown, once a second
@@ -940,6 +943,11 @@ cd_s:   dw 180
 gf:     db 0
 
 ; ------------------------------------------------------------------- HUD
+hud_clear_old:
+        ld ix,cpu_t : ld b,CPU_N
+.l:     xor a : ld (ix+29),a : ld (ix+21),a : ld (ix+14),$0F : ld (ix+15),$27
+        ld de,CPU_SZ : add ix,de : djnz .l
+        ret
 hud_static:
         xor a : ld (fr_x),a : ld (fr_y),a : ld (fr_c),a : ld a,255 : ld (fr_w),a : ld a,12 : ld (fr_h),a
         call fill_rect                               ; wipe the top bar: nothing of the last race stays behind
@@ -1013,7 +1021,7 @@ hud_race:                                           ; race: "LAPS n" (laps still
         ld a,(hd_slot) : ld e,a : ld d,0 : ld hl,rc_col : add hl,de : ld a,(hl) : ld (txt_col),a
         ld hl,lap_show : add hl,de : ld a,(hl) : or a : jr z,.nl      ; just crossed the line: the lap time instead of LAPS n
         ld hl,lap_last : add hl,de : add hl,de : ld a,(hl) : inc hl : ld h,(hl) : ld l,a
-        call print_tenths : ld a,'S' : call print_char : ld a,' ' : jp print_char
+        call print_tenths : ld a,' ' : jp print_char
 .nl:    ld hl,s_laps
 .s:     ld a,(hl) : or a : jr z,.d
         push hl : call print_char : pop hl : inc hl : jr .s
@@ -1055,22 +1063,26 @@ dd_r: db 0
 
 hud_cell:                                           ; HL = tenths, A = colour, B = column
         ld (txt_fg),a : ld a,b : ld (txt_col),a : xor a : ld (txt_row),a
-        ld a,h : cp 4 : jr c,print_tenths
-        ld hl,999
-print_tenths:                                       ; HL = 0..999 -> "SS.T"
-        ld de,100 : ld c,'0'
-.h:     or a : sbc hl,de : jr c,.h2
-        inc c : jr .h
-.h2:    add hl,de : ld a,c : cp '0' : jr nz,.h3
+        ld de,10000 : push hl : or a : sbc hl,de : pop hl : jr c,print_tenths
+        ld hl,9999
+print_tenths:                                       ; HL = hundredths of a second 0..9999 -> "SS.TT" drawn at txt_col/txt_row
+        ld de,tbuf : call cs_fmt
+        xor a : ld (de),a
+        ld hl,tbuf : jp print_str
+cs_fmt:                                             ; HL = 0..9999, DE = destination -> "SS.TT" (a blank for a leading zero); DE ends after it
+        ld bc,1000 : call cf_dg : cp '0' : jr nz,.a
         ld a,' '
-.h3:    push hl : call print_char : pop hl
-        ld de,10 : ld c,'0'
-.t:     or a : sbc hl,de : jr c,.t2
-        inc c : jr .t
-.t2:    add hl,de : ld a,c : push hl : call print_char : pop hl
-        ld a,'.' : push hl : call print_char : pop hl
-        ld a,l : add a,'0'
-        jp print_char
+.a:     ld (de),a : inc de
+        ld bc,100 : call cf_dg : ld (de),a : inc de
+        ld a,'.' : ld (de),a : inc de
+        ld bc,10 : call cf_dg : ld (de),a : inc de
+        ld a,l : add a,'0' : ld (de),a : inc de
+        ret
+cf_dg:      ld a,'0'                                           ; HL / BC -> digit in A, remainder in HL
+.l:     or a : sbc hl,bc : jr c,.d
+        inc a : jr .l
+.d:     add hl,bc : ret
+tbuf:   ds 7
 
 print_dec2:                                         ; A = 0..99
         ld b,0
@@ -1098,6 +1110,8 @@ print_at:                                           ; B=col C=row HL=string (0-t
 
 print_char:                                         ; A = ASCII, draws at txt_col/txt_row
         sub 32 : jr c,.sp
+        cp 83 : jr nz,.ns : ld a,63                     ; lower case s -> the small s drawn in the '_' slot
+.ns:
         cp 64 : jr c,.ok
 .sp:    xor a
 .ok:    ld l,a : ld h,0 : add hl,hl : add hl,hl : add hl,hl
@@ -1163,6 +1177,11 @@ bt_f:   db 6
 draw_startline:
         ld hl,(meta_ptr) : ld a,(hl) : ld (sl_x+1),a : inc hl : ld a,(hl) : ld (sl_y+1),a : inc hl : ld a,(hl)
         and $F8 : add a,4 : and 31 : ld (sl_h),a      ; snap the travel direction to the nearest isometric axis (the fences run along these)
+        ld hl,hcos : ld (slc_p),hl : ld hl,hsin : ld (sls_p),hl
+        ld a,(track_idx) : sub 4 : cp 2 : jr nc,.std
+        ld hl,hcos5 : ld (slc_p),hl : ld hl,hsin5 : ld (sls_p),hl      ; tracks 5, 6: fences at -14.8 / 75.2 degrees
+        ld a,31 : ld (sl_h),a
+.std:
         ld a,$80 : ld (sl_x),a : ld (sl_y),a
         ld a,(sl_h) : call sl_vec
         ld b,16
@@ -1171,6 +1190,10 @@ draw_startline:
         ld a,(sl_x0+1) : ld (sl_cx),a : ld a,(sl_y0+1) : ld (sl_cy),a
         ld a,(sl_h) : cp 16 : sbc a,a : cpl : ld (sl_ns),a
         ld a,(sl_h) : sub 8 : and 31 : cp 16 : sbc a,a : ld (sl_nc),a
+        ld a,(sl_nc) : or 1 : ld (sl_ax),a : ld a,(sl_ns) : or 1 : ld (sl_ay),a : ld hl,100 : ld (sl_lim),hl
+        ld a,(track_idx) : sub 4 : cp 2 : jr nc,.nl5
+        ld a,4 : ld (sl_ax),a : ld a,-1 : ld (sl_ay),a : ld hl,290 : ld (sl_lim),hl
+.nl5:
         ld hl,-1000 : ld (sl_prev),hl : xor a : ld (lap_armed),a
         ld (gc_ok),a
         ld a,(sl_h) : add a,8 : and 31 : call sl_ray
@@ -1225,8 +1248,8 @@ sl_plot:
         ret
 sl_vec:                                             ; A = heading -> sl_dx = 2*cos (8.8), sl_dy = sin/2 on screen
         ld e,a : ld d,0
-        ld hl,hcos : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : add hl,hl : ld (sl_dx),hl
-        ld hl,hsin : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : ld (sl_dy),hl
+        ld hl,(slc_p) : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : add hl,hl : ld (sl_dx),hl
+        ld hl,(sls_p) : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : ld (sl_dy),hl
         ret
 sl_adv:
         ld hl,(sl_x) : ld de,(sl_dx) : add hl,de : ld (sl_x),hl
@@ -1239,6 +1262,11 @@ sl_y0: dw 0
 sl_dx: dw 0
 sl_dy: dw 0
 sl_h: db 0
+slc_p: dw hcos
+sls_p: dw hsin
+sl_ax: db 1                                         ; direction of travel across the line as small integers (game x, 2*screen y): diagonal 1,1 / track 5 (4,-1)
+sl_ay: db 1
+sl_lim: dw 100
 sl_py: db 0
 
 ; basic trees on the grass: pseudo-random spots (fixed per track), only where a whole 6x9 patch is plain grass
@@ -1371,14 +1399,19 @@ ay_silence:
 
 sound_update:
         call sound_update0
-        jp snd_imp
+        call snd_imp
+        jp snd_bell
 
-snd_impact:                                         ; any crash (fence or car): a short, quiet thud on channel B, at most one per 12 frames
+snd_impact:                                         ; any crash (fence or car): a short, quiet thud on channel B, only for a NEW contact:
+        ld a,(snd_cn) : ld b,a : ld a,10 : ld (snd_cn),a      ; staying in contact (scraping a fence while accelerating) keeps re-arming the gap timer
+        ld a,b : or a : ret nz
         ld a,(snd_hit) : or a : ret nz
         ld a,12 : ld (snd_hit),a
         ret
 snd_imp:                                            ; 6 frames of noise on B (volume 9 down to 4), then 6 frames before it can sound again
-        ld a,(snd_hit) : or a : ret z
+        ld a,(snd_cn) : or a : jr z,.nc
+        dec a : ld (snd_cn),a
+.nc:    ld a,(snd_hit) : or a : ret z
         dec a : ld (snd_hit),a
         cp 6 : jr c,.fin
         push af : ld e,$22 : ld a,7 : call ay_write : ld e,20 : ld a,6 : call ay_write : pop af
@@ -1386,6 +1419,28 @@ snd_imp:                                            ; 6 frames of noise on B (vo
 .fin:   cp 5 : ret nz
         ld e,12 : ld a,6 : jp ay_write
 snd_hit:    db 0
+bell_chk:                                           ; A = laps a car has just completed: the first car to start the final lap rings the bell
+        ld b,a : ld a,(phase) : or a : ret z
+        ld a,(bl_done) : or a : ret nz
+        ld a,(laps_total) : dec a : cp b : ret nz
+        ld a,1 : ld (bl_done),a : ld a,36 : ld (bl_t),a : xor a : ld (bl_p),a
+        ret
+snd_bell:                                           ; ding ding ding: three 12-frame rings on channel B, each fading out (overrides the impact / tyre noise while it rings)
+        ld a,(bl_t) : or a : ret z
+        dec a : ld (bl_t),a
+        ld a,(bl_p) : ld (bl_b),a : inc a : cp 12 : jr c,.k
+        xor a
+.k:     ld (bl_p),a
+        ld a,7 : ld e,$30 : call ay_write
+        ld a,(bl_t) : and 1 : add a,a : add a,a : add a,90 : ld e,a : ld a,2 : call ay_write
+        ld a,3 : ld e,0 : call ay_write
+        ld a,(bl_b) : ld e,a : ld a,15 : sub e : ld e,a : ld a,9 : jp ay_write
+bl_t:       db 0
+bl_p:       db 0
+bl_b:       db 0
+bl_done:    db 0
+snd_w:      db 0
+snd_cn:     db 0                                    ; frames left before the next contact counts as a new crash
 
 sound_update0:                                      ; lead human car: engine note + noise follows speed, tyre screech from any human
         ld a,(snd_skid) : or a : jr z,.ns
@@ -1406,15 +1461,21 @@ sound_update0:                                      ; lead human car: engine not
         add hl,hl : add hl,hl                                        ; 32*level
         add hl,de                                                    ; 40*level
         ex de,hl : ld hl,1100 : or a : sbc hl,de                     ; period = 1100-40*level (about 100-220 Hz)
-        push hl
+        ld a,(boost_t) : or a : jr z,.nbp                            ; boost: the engine note a little higher (period down by about 9%)
+        ld d,h : ld e,l : srl d : rr e : srl d : rr e : srl d : rr e : srl d : rr e
+        ld b,d : ld c,e : srl b : rr c : ex de,hl : add hl,bc : ex de,hl : or a : sbc hl,de
+.nbp:   push hl
         ld e,l : xor a : call ay_write
         pop hl
         ld e,h : ld a,1 : call ay_write
 .scr:   ld a,(snd_skid) : or a : jr z,.quiet               ; tyre screech: high wobbling tone on channel B
-        ld a,7 : ld e,$30 : call ay_write
-        ld a,(fcnt) : and 3 : add a,a : add a,a : add a,70 : ld e,a : ld a,2 : call ay_write
+        ld a,7 : ld e,$20 : call ay_write                          ; tone + noise on B
+        ld a,(snd_w) : inc a : ld (snd_w),a
+        and 3 : add a,a : add a,a : add a,150 : ld e,a : ld a,2 : call ay_write      ; a lower note (period 150-162) with a small wobble (snd_w: own frame counter - fcnt belongs to the per-car context and is swapped every frame)
         ld a,3 : ld e,0 : call ay_write
-        ld a,9 : ld e,8 : jp ay_write
+        ld a,(snd_w) : and 15 : cp 5 : ld e,0 : jr c,.on                              ; sliding: a gap of 5 frames (a tenth of a second) in every 16, the squeal carries on in between
+        ld e,9
+.on:    ld a,9 : jp ay_write
 .quiet: ld a,7 : ld e,$32 : call ay_write
         ld a,9 : ld e,0 : jp ay_write
 
@@ -1449,6 +1510,9 @@ upd_sel:        db "> UPDATE TO "                                 ; the same, se
 upd_sv:         ds 8
                 db " <",0
 mrows:          db 10                                             ; menu rows: 10, or 11 with the update item
+hs_vcheck:      call mus_off                                     ; U on the main menu: ask the server for the newest build again
+                call hs_on : call pg_vcheck : call hs_off
+                jp mus_resume
 hs_update:      call mus_off                                     ; the tune stays off for the whole download (each slice used to stop and restart it)
                 call hs_on : call pg_update : call hs_off
                 jp mus_resume
@@ -1470,7 +1534,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111848",0
+s_ver: db "26111861",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1484,7 +1548,7 @@ speed:      db 0
 steer_cnt:  db 0
 lastp:      db 0
 fcnt:       db 0
-lap_tenths: dw 0
+lap_tenths: dw 0                                    ; the lap clock, in hundredths of a second
 best_tenths: dw $FFFF
 skid:       db 0
 turn_run:   db 0
@@ -1511,7 +1575,7 @@ snd_skid:   db 0
 race_over:  db 0
 menu_sel:   db 0
 track_idx:  db 0
-trk_max:    db 4                                    ; tracks on offer: the finished ones (1 to 4); typing DEBUG on the instructions page unlocks all 24
+trk_max:    db 5                                    ; tracks on offer: the finished ones (1 to 5); typing DEBUG on the instructions page unlocks all 24
 prev_in:    db 0
 laps_i:     db 3
 txt_col:    db 0
@@ -1579,19 +1643,20 @@ lap_tick:                                           ; once per frame; redraw the
 .n:     inc hl : djnz .l
         ret
             INCLUDE "build/tracks.inc"
-font:       INCBIN "build/font.bin"
 code_end:
+            ASSERT code_end <= $BA00                    ; the main code must stay below the IM2 vector table
             ORG $BA00
 mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
             ORG $BBBB
             JP mus_isr
+font:       INCBIN "build/font.bin"                     ; after the IM2 table and its jump (the code had grown into $BA00 and the font sat on the vectors)
 
 ; --------------------------------------------------- track banks (16K each)
             INCLUDE "src/trackdata.asm"
 
 ; --- best laps, file access and online scores live in the high-score page, which is mapped at $E000 while they run
             MMU 7, HS_PG
-            ORG $E800
+            ORG $E7A0                               ; the table (1920 bytes) + names + format marker end at $E795
             INCLUDE "src/hiscore.asm"
             ASSERT $ < $FFFF
             MMU 6, 81

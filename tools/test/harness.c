@@ -90,6 +90,7 @@ int main(int argc,char**argv){
       if(getenv("PADDWN")&&frames==60) dump("build/online.ppm");                       // START
       if(frames==sf+3) startedrace=1;
       int r0=sf+20;
+      if(getenv("SKIDPOKE") && startedrace && frames>r0+5) { wr(0,symaddr("snd_skid"),5); if(frames<r0+12) printf("SK f%d now %d lt %d\n",frames,rd(0,symaddr("snd_skid")),rd(0,symaddr("lt_s"))); }
       if(startedrace && mode==3 && frames==r0+1){ pk(symaddr("boost_cnt"),3); }
       if(startedrace && mode==3 && frames>=r0+10 && frames%10==0) printf("f%d pos(%d,%d) spd %d boost_t %d cnt %d\n",frames-r0,rd(0,A_X+1),rd(0,A_Y+1),rd(0,A_S),rd(0,symaddr("boost_t")),rd(0,symaddr("boost_cnt")));
       if(startedrace && (mode==1||mode==2) && frames>=r0 && (frames-r0)%15==0) printf("m%d f%d hd %d spd %d dir %d\n",mode,frames-r0,rd(0,A_H),rd(0,A_S),rd(0,symaddr("dir")));

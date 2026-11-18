@@ -15,20 +15,25 @@ menu_run:
         ld b,17 : ld c,23 : ld hl,s_ver : call print_at
         ld a,(upd_flag) : add a,MENU_ROWS : ld (mrows),a        ; a newer build on the server adds the UPDATE item
         call menu_draw
-        call menu_in : ld (prev_in),a
+        ld a,(mu_msg) : or a : jr z,.nm                 ; back from a U key update check
+        xor a : ld (mu_msg),a
+        ld a,(upd_flag) : or a : jr nz,.nm
+        ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_nonew : ld c,19 : call print_cen
+.nm:    call menu_in : ld (prev_in),a
 .loop:  call wait_frame
+        call menu_ukey
         call menu_in : ld b,a
         ld a,(prev_in) : cpl : and b : ld c,a       ; C = newly pressed
         ld a,b : ld (prev_in),a
-        ld a,(menu_sel) : ld e,a
+        ld a,(menu_sel) : ld e,a : ld (md_old),a
         bit ACC,c : jr z,.nu
         ld a,(mrows) : ld b,a : dec a : add a,e : cp b : jr c,.su
         sub b
-.su:    ld (menu_sel),a : call menu_draw : jr .loop
+.su:    ld (menu_sel),a : call menu_drawsel : jr .loop
 .nu:    bit DWN,c : jr z,.nd
         ld a,(mrows) : ld b,a : ld a,e : inc a : cp b : jr c,.sd
         xor a
-.sd:    ld (menu_sel),a : call menu_draw : jr .loop
+.sd:    ld (menu_sel),a : call menu_drawsel : jr .loop
 .nd:    ld d,1 : bit RGT,c : jr nz,.chg
         ld d,255 : bit LFT,c : jr nz,.chg
         bit BST,c : jr z,.loop
@@ -38,7 +43,7 @@ menu_run:
         call hs_update : jp menu_run                ; download the newer build
 .b9:    cp 8 : jr nz,.start
         call hs_view : jp menu_run
-.chg:   call menu_change : call menu_draw : jr .loop
+.chg:   call menu_change : ld a,(menu_sel) : call menu_row : jp .loop
 .start: ld hl,ctl : ld b,4                          ; humans enter names; all-computer races start straight away
 .h:     ld a,(hl) : cp 6 : jr c,.ok
         inc hl : djnz .h
@@ -47,6 +52,14 @@ menu_run:
         inc hl : djnz .cc
         jp .loop
 .ok:    jp hs_names                               ; every human player enters a name for the best laps first
+
+menu_ukey:                                          ; U: check the server for a newer build (does not return: the menu is drawn again)
+        ld bc,$DFFE : in a,(c) : bit 3,a : ret nz
+        pop af
+        call hs_vcheck
+.ur:    call wait_frame : ld bc,$DFFE : in a,(c) : bit 3,a : jr z,.ur     ; let go of U first
+        ld a,1 : ld (mu_msg),a
+        jp menu_run
 
 menu_change:                                        ; E = row, D = +1 / -1
         ld a,e : cp 4 : jr nc,.o
@@ -79,8 +92,16 @@ wrapadd:                                            ; A + D modulo B
 .n:     cp b : ret c
         xor a : ret
 
-menu_draw:                                          ; selected row: "< value >" (or "> ITEM <"); the row is cleared and redrawn
-        ld c,0
+menu_drawsel:                                       ; the highlight moved: only the row it left and the row it arrived on are redrawn (no flicker elsewhere)
+        ld a,(md_old) : call menu_row
+        ld a,(menu_sel)
+menu_row:                                           ; A = menu row to redraw
+        ld (md_lo),a : inc a : ld (md_end),a
+        jr menu_drw
+menu_draw:
+        xor a : ld (md_lo),a : ld a,(mrows) : ld (md_end),a
+menu_drw:                                           ; rows md_lo .. md_end-1: selected row "< value >" (or "> ITEM <"); each row is cleared and redrawn
+        ld a,(md_lo) : ld c,a
 .r:     push bc
         ld e,c : ld d,0 : ld hl,row_tab : add hl,de : ld a,(hl) : ld (md_row),a   ; screen row
         ld a,(menu_sel) : cp c : ld a,0 : jr nz,.s0
@@ -129,10 +150,15 @@ menu_draw:                                          ; selected row: "< value >" 
         ld a,c : sub 7 : ld b,a : ld a,(md_sel) : ld e,a : add a,a : add a,e : add a,b : add a,a : ld e,a : ld d,0
         ld hl,cen_tab : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld a,(md_row) : ld c,a : call print_cen
-.nx:    pop bc : inc c : ld a,c : ld hl,mrows : cp (hl) : jp c,.r
+.nx:    pop bc : inc c : ld a,c : ld hl,md_end : cp (hl) : jp c,.r
         ret
 row_tab: db 6,7,8,9,12,13,14,17,18,21,4
 md_row:  db 0
+mu_msg:  db 0
+s_nonew: db "NO NEWER BUILD FOUND",0
+md_lo:   db 0
+md_end:  db 0
+md_old:  db 0
 md_sel:  db 0
 md_str:  dw 0
 md_col:  db 0
@@ -205,7 +231,7 @@ show_results:
         call race_keys : jr .kk
 .kp:    ld ix,cpu_t : ld iy,ro_key : ld b,CPU_N          ; practice: best laps
 .pl:    ld a,(ix+14) : ld (iy+0),a : ld a,(ix+15) : ld (iy+1),a
-        cp 4 : jr c,.pk : ld (iy+0),$E7 : ld (iy+1),3                  ; no lap time = 99.9
+        cp $27 : jr c,.pk : ld (iy+0),$0F : ld (iy+1),$27              ; no lap time = 99.99
 .pk:        ld de,CPU_SZ : add ix,de : inc iy : inc iy : djnz .pl
 .kk:    call rank_all
         ld a,(phase) : or a : call nz,merge_finished
@@ -220,7 +246,7 @@ show_results:
         ld a,(rs_slot) : ld e,a : ld d,0 : push hl : ld hl,ctl : add hl,de : ld a,(hl) : pop hl : cp 6 : jr nc,.cn
         ld a,(rs_slot) : call hs_pname              ; ... or the player's own name for a human car
 .cn:    ld (rs_str),hl : call tlen
-        ld e,a : ld a,6 : sub e : srl a : add a,11 : ld (rs_nc),a   ; columns: #n left aligned, the name centred in a 6-wide field (YELLOW is the widest), the time right aligned
+        ld a,11 : ld (rs_nc),a                      ; columns: #n, then the name straight after "#n - " (YELLOW is the widest), the time right aligned
         ld a,6 : ld (txt_col),a
         ld a,'#' : call print_char
         pop bc : push bc : ld a,c : add a,'1' : call print_char
@@ -230,9 +256,9 @@ show_results:
         ld a,17 : ld (txt_col),a
         ld a,' ' : call print_char : ld a,'-' : call print_char : ld a,' ' : call print_char
         ld a,(rs_slot) : ld d,a : ld e,CPU_SZ : mul d,e : ld hl,cpu_t+14 : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
-        ld a,h : cp 4 : jr c,.tt
-        ld hl,999
-.tt:    call print_tenths : ld a,'S' : call print_char
+        ld a,h : cp $27 : jr c,.tt
+        ld hl,9999
+.tt:    call print_tenths
 .nt:    pop bc : inc c : dec b : jp nz,.l
 .done:  ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_pfc : ld c,22 : call print_cen    ; results stay up until the player decides to go on
 .d0:    call wait_frame : call menu_in : bit BST,a : jr nz,.d0
