@@ -237,9 +237,9 @@ show_results:
 .p0:    ld a,PROMPT_C : ld (txt_fg),a
         ld a,(phase) : or a : jr nz,.pm
         ld a,(laps_total) : or a : jr z,.pm
-        ld hl,s_prace : ld b,3 : jr .pp
+        ret                                         ; practice then race: the track screen shows PRESS FIRE TO START RACE itself
 .pm:    ld hl,s_pmenu : ld b,6
-.pp:    ld c,18 : call print_at
+        ld c,18 : call print_at
 .w:     call wait_frame : call menu_in : bit BST,a : jr nz,.w          ; let go of Space first
 .w2:    call wait_frame : call menu_in : bit BST,a : jr z,.w2
 .w3:    call wait_frame : call menu_in : bit BST,a : jr nz,.w3
@@ -250,7 +250,6 @@ res_col: db 7,8,7,6
 s_pfc:    db "PRESS FIRE TO CONTINUE",0
 s_pover:  db "PRACTICE IS OVER",0
 s_rover:  db "RACE IS OVER",0
-s_prace:  db "PRESS SPACE TO START RACE",0
 s_pmenu:  db "PRESS SPACE FOR MENU",0
 col_names: dw cb,cr,cg,cy
 cb: db "BLUE",0
