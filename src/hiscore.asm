@@ -556,20 +556,24 @@ pg_instr:
         ld a,PROMPT_C
 .c4:    ld (txt_fg),a : call print_cen : pop bc : pop hl
         inc c : jr .l
-.w:     call menu_in : or a : jr nz,.w                ; let go of the key that brought us here
+.w:     ld a,PROMPT_C : ld (txt_fg),a : ld hl,i11 : ld c,23 : call print_cen
+.wk:    call menu_in : or a : jr nz,.wk                ; let go of the key that brought us here
 .w2:    call wait_frame : call menu_in : or a : jr z,.w2
 .w3:    call wait_frame : call menu_in : or a : jr nz,.w3
         ret
 
-ins_tab:  dw i1,i2,i3,i4,i5,i6,i10,i12,i11,0
-i1:  db "Q ACCEL  A BRAKE/REVERSE",0
-i2:  db "O LEFT P RIGHT SPACE BOOST",0
-i3:  db "KEMPSTON: A/B ACCELERATE",0
-i4:  db "C BRAKE DOWN REVERSE UP BOOST",0
-i5:  db "CROSS THE LINE FOR A BOOST",0
-i6:  db "BOOST: 1.5X SPEED FOR 2 SECS",0
+ins_tab:  dw i1,i2,i3,i4,ib,i5,i6,i7,i8,ib,i9,i10,0
+i1:  db "KEY & JOY CONTROLS",0
+i2:  db "Q=ACCEL  A=BRAKE/REVERSE",0
+i3:  db "O=LEFT P=RIGHT",0
+i4:  db "SPACE=BOOST",0
+i5:  db "KEMP : 6 BUTTON CONTROLS:",0
+i6:  db "A/B=ACCELERATE",0
+i7:  db "C=BRAKE DOWN=REVERSE UP=BOOST",0
+i8:  db "1 BOOST EARNED FOR EACH LAP",0
+i9:  db "BOOST: 1.5X SPEED FOR 2 SECS",0
 i10: db "ENTER OR START LEAVES A RACE",0
-i12: db "SYMBOL SHIFT+SPACE ENDS IT",0
+ib:  db 0
 i11: db "PRESS FIRE TO RETURN",0
 
 
