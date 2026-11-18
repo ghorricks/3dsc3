@@ -159,7 +159,7 @@ mv_mark:                                            ; selected row: "<" two colu
         ld a,(mv_c) : sub 2 : ld (txt_col),a : ld a,(mv_r) : ld (txt_row),a : ld a,'<' : call print_char
         ld a,(mv_c) : ld b,a : ld a,(mv_l) : add a,b : inc a : ld (txt_col),a : ld a,'>' : jp print_char
 
-menu_instr:    call hs_on : call pg_instr : jp hs_off          ; the instructions screen lives in the high-score page
+menu_instr:    nextreg REG_MMU6,LOGO_PG : call pg_instr : jp map_track     ; the instructions screen lives in page 81, at $C000
 
 s_by:     db "BY GAVIN HORRICKS",0
 s_vlab:   db "VERSION : ",0

@@ -4,7 +4,7 @@
 #include <string.h>
 #include <math.h>
 static uint8_t ram[224*8192]; static uint8_t mmu[8]={0xFF,0xFF,10,11,4,5,0,1};
-static uint8_t regs[256], nsel, pal[256], palidx, padval, ayreg; static int palsel;
+static uint8_t pad2; static uint8_t regs[256], nsel, pal[256], palidx, padval, ayreg; static int palsel;
 static int wcnt[8]; static unsigned long prof[65536]; static unsigned long wsum,wmax,last_exit; static int wn,wf_lastf; static unsigned wf_addr; static int cpu_bad[3]; static uint8_t spr[8]; static int sprn, patcount; static int mode=0; static uint8_t ay[16]; static int ras=0, frames=0;
 static uint8_t rd(void*u,uint16_t a){uint8_t p=mmu[a>>13]; return p==0xFF?0:ram[p*8192+(a&0x1FFF)];}
 static unsigned minsp; static uint16_t curpc; static void* zz; static void wr(void*u,uint16_t a,uint8_t v){ if(getenv("WW")&&a>=0xB1FF&&a<0xB210&&mmu[a>>13]==5){ static int nn=0; if(nn++<4) printf("WRITE %04X=%02X by pc=%04X ix=%04X sp=%04X frames=%d stk:",a,v,curpc,((struct z80*)zz)->ix,((struct z80*)zz)->sp,frames); if(nn==1){ unsigned sp=((struct z80*)zz)->sp; for(int q=0;q<10;q++) printf(" %02X%02X",ram[5*8192+((sp+2*q+1)&0x1FFF)],ram[5*8192+((sp+2*q)&0x1FFF)]); } printf("\n"); }uint8_t p=mmu[a>>13]; if(p!=0xFF) ram[p*8192+(a&0x1FFF)]=v;}
@@ -15,7 +15,7 @@ static void nreg(uint8_t r,uint8_t v){ regs[r]=v;
   else if(r==0x44){ static int ph; if(!ph){ if(palsel==1) pal[palidx]=v; ph=1;} else { ph=0; palidx++; } }
   else if(r==0x41){ if(palsel==1) pal[palidx]=v; palidx++; } }
 static uint8_t pin(z80*z,uint8_t lo){ uint16_t p=(z->b<<8)|lo;
-  if(lo==0x1F) return padval; if(lo==0x37) return 0;
+  if(lo==0x1F) return padval; if(lo==0x37) return pad2;
   if(lo==0xFE){ if(getenv("PAUSEF")&&(z->b==0xFE||z->b==0x7F)){ int pf=atoi(getenv("PAUSEF")); if((frames>=pf&&frames<pf+4)||(frames>=pf+50&&frames<pf+54)) return 0xFE; } return 0xFF; }
   if(p==0x253B){ if(nsel==0x1F){ uint8_t r=ras&255; ras+=4; if(ras>=312){ras=0;} if(r==192)frames++; return r;} return regs[nsel]; }
   return 0xFF; }
@@ -38,25 +38,26 @@ int main(int argc,char**argv){
   unsigned A_X=symaddr("car_x"),A_Y=symaddr("car_y"),A_H=symaddr("heading"),A_S=symaddr("speed"),A_LP=symaddr("lastp"),A_TI=symaddr("track_idx");
   unsigned a_pgn=symaddr("pg_names"), a_pgc=symaddr("pg_choice"), a_rdy=symaddr("pg_ready"); int cho_hit=0;
   int trk=argc>1?atoi(argv[1]):0; int accel_frames=argc>2?atoi(argv[2]):200; mode=argc>3?atoi(argv[3]):0; const char*shot=argc>4?argv[4]:0;
-  int sx=0,sy=0,ex=0,ey=0,es=0,ehd=0,elp=0; int lastf=-1, phase=0; int startedrace=0; int ms_done=0, updt_done=0, upd_hit=0; unsigned long guard=0;
+  int sx=0,sy=0,ex=0,ey=0,es=0,ehd=0,elp=0; int lastf=-1, phase=0; int startedrace=0; int lastp2=-1, barn=0, ms_done=0, updt_done=0, upd_hit=0; unsigned long guard=0;
   while(frames<4+accel_frames+40 && guard<900000000UL){
     uint16_t pc=z.pc; curpc=pc; unsigned long c0=z.cyc; uint8_t o0=rd(0,pc),o1=rd(0,pc+1);
-    if(pc==8){ static FILE*ef; uint16_t ra=rd(0,z.sp)|(rd(0,z.sp+1)<<8); int fn=rd(0,ra); z.sp+=2; z.pc=ra+1; z.cf=0; z.cyc+=100;
-      if(fn==0x9A){ char nm[32]; int i=0; for(;i<31&&(nm[i]=rd(0,z.ix+i));i++); const char*sp=getenv("SAV")?getenv("SAV"):"build/3DSC3.SAV"; if(!strcmp(nm,"3DSC3.TMP")) sp="build/3DSC3.TMP"; static char fp[64]; if(!strncmp(nm,"3DSC3_",6)){ snprintf(fp,64,"build/%s",nm); sp=fp; } ef=fopen(sp,(z.b&2)?"wb":"rb"); if(!ef){ z.cf=1; z.a=5; } else z.a=1; printf("esx open %s mode %d ok %d ra=%04X sp=%04X f=%d\n",nm,z.b,ef!=0,ra,z.sp,frames); }
+    if(pc==8){ static FILE*efs[16]; FILE*ef=efs[z.a&15]; uint16_t ra=rd(0,z.sp)|(rd(0,z.sp+1)<<8); int fn=rd(0,ra); z.sp+=2; z.pc=ra+1; z.cf=0; z.cyc+=100;
+      if(fn==0x9A){ char nm[32]; int i=0; for(;i<31&&(nm[i]=rd(0,z.ix+i));i++); const char*sp=getenv("SAV")?getenv("SAV"):"build/3DSC3.SAV"; if(!strcmp(nm,"3DSC3.TMP")) sp="build/3DSC3.TMP"; static char fp[64]; if(!strncmp(nm,"3DSC3_",6)){ snprintf(fp,64,"build/%s",nm); sp=fp; } if(!strcmp(nm,"3DSC3.SLC")){ static char sl[64]; snprintf(sl,64,"build/%s",nm); sp=sl; } if(z.b==0x0A){ ef=fopen(sp,"r+b"); if(!ef) ef=fopen(sp,"w+b"); } else ef=fopen(sp,(z.b&2)?"wb":"rb"); if(!ef){ z.cf=1; z.a=5; } else { int h=1; while(efs[h]) h++; efs[h]=ef; z.a=h; } printf("esx open %s mode %d ok %d ra=%04X sp=%04X f=%d\n",nm,z.b,ef!=0,ra,z.sp,frames); }
       else if(fn==0x9D){ int n=0,L=(z.b<<8)|z.c; for(int i=0;i<L;i++){ int ch=fgetc(ef); if(ch<0)break; wr(0,z.ix+i,ch); n++; } z.b=n>>8; z.c=n&255; printf("esx read %d\n",n); }
       else if(fn==0x9E){ int L=(z.b<<8)|z.c; for(int i=0;i<L;i++) fputc(rd(0,z.ix+i),ef); printf("esx write %d\n",L); }
-      else if(fn==0x9B){ fclose(ef); }
+      else if(fn==0x9B){ if(ef){ fclose(ef); efs[z.a&15]=0; } }
       else if(fn==0x8F){ char cmd[200]; int i=0; unsigned hl=z.ix; for(;i<199&&(cmd[i]=rd(0,hl+i));i++); printf("http: f%d ix=%04X mmu7=%d tbl=%02X%02X%02X %s\n",frames,z.ix,mmu[7],ram[80*8192],ram[80*8192+1],ram[80*8192+5],cmd);
-        if(getenv("NETFAIL")){ z.cf=1; z.a=9; } else { const char*rsp=strstr(cmd,"?version")?(getenv("OLDV")?"26111001,releases/old.nex,1,0\n":"26111999,releases/3DSC3_26111999.nex,442880,00000000\n"):strstr(cmd,"name=")?"OK\n":strstr(cmd,"track=all")?"1,GAAAA,14.2\n1,GAVIN,14.5\n1,ETHAN,15.6\n1,3DSC3,99.9\n2,GAV  ,10.8\n2,GAVIN,11.9\n2,3DSC3,99.8\n3,DAD  ,18.5\n3,3DSC3,99.8\n24,ZED  ,60.1\n":"---\nGAVIN,42.3\nSPEED,42.5\nBLUE,100.0\n---\n"; if(strstr(cmd,"?download")){ FILE*df=fopen("build/3DSC3_26111999.NEX","wb"); int n=getenv("UPDSIZE")?atoi(getenv("UPDSIZE")):442880; fputs("Next",df); for(int k=4;k<n;k++) fputc(k&255,df); fclose(df); } if(strstr(cmd,"-f 3DSC3.TMP")){ FILE*tf=fopen("build/3DSC3.TMP","wb"); fputs(rsp,tf); fclose(tf); } } }
+        if(getenv("NETFAIL")){ z.cf=1; z.a=9; } else { const char*rsp=strstr(cmd,"?version")?(getenv("OLDV")?"26111001,releases/old.nex,1,0\n":"26111999,releases/3DSC3_26111999.nex,442880,00000000\n"):strstr(cmd,"name=")?"OK\n":strstr(cmd,"track=all")?"1,GAAAA,14.2\n1,GAVIN,14.5\n1,ETHAN,15.6\n1,3DSC3,99.9\n2,GAV  ,10.8\n2,GAVIN,11.9\n2,3DSC3,99.8\n3,DAD  ,18.5\n3,3DSC3,99.8\n24,ZED  ,60.1\n":"---\nGAVIN,42.3\nSPEED,42.5\nBLUE,100.0\n---\n"; if(strstr(cmd,"?download")){ const char*pp=strstr(cmd,"&part="); int part=pp?atoi(pp+6):0; int n=getenv("UPDSIZE")?atoi(getenv("UPDSIZE")):442880; FILE*df=fopen("build/3DSC3.SLC","wb"); for(int k=part*60928;k<n&&k<(part+1)*60928;k++){ if(k<4) fputc("Next"[k],df); else fputc(k&255,df);} fclose(df); printf("slice %d\n",part); } if(strstr(cmd,"-f 3DSC3.TMP")){ FILE*tf=fopen("build/3DSC3.TMP","wb"); fputs(rsp,tf); fclose(tf); } } }
       else if(fn==0xB0){ char a1[32],a2[32]; int i=0; for(;i<31&&(a1[i]=rd(0,z.ix+i));i++); a1[i]=0; i=0; unsigned de=(z.d<<8)|z.e; for(;i<31&&(a2[i]=rd(0,de+i));i++); a2[i]=0; char p1[64],p2[64]; snprintf(p1,64,"build/%s",a1); snprintf(p2,64,"build/%s",a2); int r=rename(p1,p2); if(r){ z.cf=1; z.a=5; } printf("esx rename %s -> %s : %d\n",a1,a2,r); }
       else if(fn==0x9F){ long off=((long)z.c<<24)|((long)z.d<<16)|((long)z.e<<8); off=((long)z.b<<24)|((long)z.c<<16)|((long)z.d<<8)|z.e; fseek(ef,off,SEEK_SET); printf("esx seek %ld\n",off); }
-      else if(fn==0xAD){ char nm[32]; int i=0; for(;i<31&&(nm[i]=rd(0,z.ix+i));i++); nm[i]=0; if(!strncmp(nm,"3DSC3",5)&&nm[5]!='.'||!strcmp(nm,"3DSC3.OLD")||!strcmp(nm,"3DSC3.NEX")){ char p[64]; snprintf(p,64,"build/%s",nm); remove(p);} else remove("build/3DSC3.TMP"); }
+      else if(fn==0xAD){ char nm[32]; int i=0; for(;i<31&&(nm[i]=rd(0,z.ix+i));i++); nm[i]=0; if(!strncmp(nm,"3DSC3",5)&&nm[5]!='.'||!strcmp(nm,"3DSC3.SLC")||!strcmp(nm,"3DSC3.OLD")||!strcmp(nm,"3DSC3.NEX")){ char p[64]; snprintf(p,64,"build/%s",nm); remove(p);} else remove("build/3DSC3.TMP"); }
       else printf("esx unknown %02X\n",fn); }
     else if(getenv("UPDT") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("hs_update"); }
     else if(getenv("UPDT") && (pc==symaddr("pg_update.k1")||pc==symaddr("ud_fail")+0*1) && !upd_hit++ ){ printf("UPDATE reached %04X frames %d\n",pc,frames); if(pc==symaddr("pg_update.k1")) frames=4+accel_frames+40; }
     else if(getenv("MENUSHOT") && pc==symaddr("menu_run.loop") && !ms_done && (ms_done=1)){ dump(getenv("MENUSHOT")); frames=4+accel_frames+40; }
     else if(getenv("INSTR") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("menu_instr"); }
     else if(getenv("INSTR") && pc==symaddr("pg_instr.w2") && !ms_done && (ms_done=1)){ dump("build/instr.ppm"); frames=4+accel_frames+40; }
+    else if(getenv("BARSHOT") && pc==symaddr("ud_bar.k") && (++barn==2)){ dump("build/bar.ppm"); frames=4+accel_frames+40; }
     else if(pc==a_pgc && (cho_hit=1)&&0){}
     else if(pc==a_rdy && !getenv("READY")){ z.pc=rd(0,z.sp)|(rd(0,z.sp+1)<<8); z.sp+=2; z.cyc+=10; }
     else if(pc==a_pgn && !getenv("NAMES")){ z.pc=rd(0,z.sp)|(rd(0,z.sp+1)<<8); z.sp+=2; z.cyc+=10; }   /* skip the name entry screen unless NAMES=1 */
@@ -132,6 +133,7 @@ int main(int argc,char**argv){
           int sc=(lastq<0?-50:lastq)*3+run; sc-=abs(st)*3; if(run<8) sc-=60; if(sc>best){best=sc;bs=st;} }
         padval=(sp<100?0x10:0)|(bs<0?0x02:(bs>0?0x01:0)); }
       else if(startedrace && mode<8 && frames>=r0 && frames<r0+accel_frames) padval=(mode==2?0x04:0x10)|(((mode==1||mode==2)&&frames>r0+30)?0x02:0)|((mode==3&&frames>r0+30)?0x08:0);
+      if(getenv("TWOP")&&startedrace){ int d=frames-r0; pad2=(d>=0)?(0x10|((d/20)%2?0x02:0x01)):0; padval=(d>=0)?0x10:0; if(d>=0&&frames%10==0 && frames!=lastp2){ lastp2=frames; unsigned ct=symaddr("cpu_t"); printf("ctx %02X%02X %02X%02X ",rd(0,ct+27),rd(0,ct+26),rd(0,ct+30+27),rd(0,ct+30+26)); printf("f%d heads %d %d  speeds %d %d\n",frames,rd(0,ct+4),rd(0,ct+30+4),rd(0,ct+5),rd(0,ct+30+5)); } }
       if(getenv("QUITT")){ int q=atoi(getenv("QUITT")); int w=atoi(getenv("QUITW")?getenv("QUITW"):"1"); int d=frames-q; if(d>=0&&d<=2) padval=0x80; else if(d>=20&&d<=22&&w>=1) padval=0x04; else if(d>=40&&d<=42&&w>=2) padval=0x80; else if(d>=0&&d<60) padval=0; }
       if(startedrace && frames==r0-1) { sx=ram[(4*8192)+(A_X+1-0x8000)]; sy=ram[(4*8192)+(A_Y+1-0x8000)]; }
       if(startedrace && frames==r0+accel_frames) { ex=ram[(4*8192)+(A_X+1-0x8000)]; ey=ram[(4*8192)+(A_Y+1-0x8000)]; es=ram[(4*8192)+(A_S-0x8000)]; ehd=ram[(4*8192)+(A_H-0x8000)]; elp=ram[(4*8192)+(A_LP-0x8000)]; }

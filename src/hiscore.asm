@@ -542,48 +542,6 @@ sv_close:   ld a,(sv_h) : rst 8 : db $9B : ret
 sv_h:       db 0
 sv_name:    db "3DSC3.SAV",0
 
-; ---- instructions screen (moved here to free main code space)
-pg_instr:
-        nextreg REG_MMU6,LOGO_PG                       ; the texts are in the logo page, at $C000+
-        call clear_screen
-        ld a,3 : ld (txt_fg),a
-        ld b,10 : ld c,1 : ld hl,s_ins0 : call print_at
-        ld a,4 : ld (txt_fg),a
-        ld hl,ins_tab : ld c,3
-.l:     ld e,(hl) : inc hl : ld d,(hl) : inc hl
-        ld a,d : or e : jr z,.w
-        push hl : ex de,hl : push bc
-        ld a,20 : push hl : ld de,i1 : or a : sbc hl,de : pop hl : jr z,.c4      ; the two headings are green
-        push hl : ld de,i5 : or a : sbc hl,de : pop hl : jr z,.c4
-        ld a,4
-.c4:    ld (txt_fg),a : call print_cen : pop bc : pop hl
-        inc c : jr .l
-.w:     ld a,PROMPT_C : ld (txt_fg),a : ld hl,i11 : ld c,23 : call print_cen
-.wk:    call menu_in : or a : jr nz,.wk                ; let go of the key that brought us here
-.w2:    call wait_frame : call jdraw : call menu_in : bit BST,a : jr z,.w2
-.w3:    call wait_frame : call menu_in : bit BST,a : jr nz,.w3
-        ret
-; raw joystick ports, live (to find out which bits each stick really sends)
-jdraw:  ld bc,$001F : in a,(c) : ld hl,jb1 : call jbits
-        ld bc,$0037 : in a,(c) : ld hl,jb2 : call jbits
-        ld bc,$243B : ld a,5 : out (c),a : inc b : in a,(c) : ld hl,jb3 : call jbits
-        ld a,3 : ld (txt_fg),a
-        ld b,8 : ld c,17 : ld hl,jt1 : call print_at
-        ld b,8 : ld c,18 : ld hl,jt2 : call print_at
-        ld b,8 : ld c,19 : ld hl,jt3 : call print_at
-        ret
-jbits:  ld d,a : ld b,8
-.l:     ld a,'0' : rl d : adc a,0 : ld (hl),a : inc hl : djnz .l
-        ret
-jt1:    db "PORT 1F "
-jb1:    ds 8
-        db 0
-jt2:    db "PORT 37 "
-jb2:    ds 8
-        db 0
-jt3:    db "NEXTREG5 "
-jb3:    ds 8
-        db 0
 
 
 
@@ -876,8 +834,7 @@ pg_update:
         call clear_screen
         ld a,3 : ld (txt_fg),a
         ld hl,s_ud1 : ld c,9 : call print_cen
-        ld hl,s_ud2 : ld c,11 : call print_cen
-        ld hl,s_ud3 : ld c,12 : call print_cen
+        ld hl,s_ud3 : ld c,18 : call print_cen
         ld de,ud_fn : ld hl,s_udp : call nb_put                ; 3DSC3_########.NEX
         ld hl,upd_ver : ld bc,8 : ldir
         ld hl,s_ude : ld bc,5 : ldir
@@ -891,9 +848,8 @@ pg_update:
         cp ',' : jr z,.pe
         ld (de),a : inc hl : inc de : jr .p
 .pe:    inc hl : push hl
-        ld hl,s_cf : call nb_put
-        ld hl,ud_fn : call nb_put
-        ld a,13 : ld (de),a : inc de : xor a : ld (de),a
+        ld hl,s_cp : call nb_put                                ; "&part=" - the digit and the file go on per slice
+        ld (ud_dpos),de
         pop hl
         ld (ud_sz),a : ld (ud_sz+1),a : ld (ud_sz+2),a          ; size in bytes, 24 bit
 .d:     ld a,(hl) : sub '0' : cp 10 : jr nc,.dd
@@ -906,8 +862,26 @@ pg_update:
         ld a,c : add a,e : ld (ud_sz+2),a
         pop hl : jr .d
 .dd:    ld a,(ud_sz) : ld b,a : ld a,(ud_sz+1) : or b : ld b,a : ld a,(ud_sz+2) : or b : jp z,ud_fail   ; no size
+        ld hl,(ud_sz) : ld a,(ud_sz+2) : ld c,a : ld b,0         ; slices of 60928 bytes: how many?
+.np:    inc b : ld de,60928 : or a : sbc hl,de : ld a,c : sbc a,0 : ld c,a : jr c,.nd
+        ld a,h : or l : or c : jr nz,.np
+.nd:    ld a,b : ld (ud_np),a : cp 10 : jp nc,ud_fail
+        ld a,192 : ld d,0
+.q:     cp b : jr c,.qd
+        sub b : inc d : jr .q
+.qd:    ld a,d : ld (ud_step),a                                 ; bar pixels per slice
+        xor a : ld (ud_part),a
         call ud_unlink
+.lp:    nextreg REG_MMU6,LOGO_PG : call ud_bar                  ; progress bar (code in page 81)
+        ld hl,(ud_dpos) : ld a,(ud_part) : add a,'0' : ld (hl),a : inc hl : ex de,hl
+        ld hl,s_csl : call nb_put
+        ld a,13 : ld (de),a : inc de : xor a : ld (de),a
+        call ud_unl_slc
         call net_exec : or a : jp nz,ud_fail
+        call ud_append : jp c,ud_fail
+        ld hl,ud_part : inc (hl) : ld a,(hl) : ld hl,ud_np : cp (hl) : jr c,.lp
+        call ud_unl_slc
+        nextreg REG_MMU6,LOGO_PG : call ud_bar                  ; full bar
         ld b,1 : ld ix,ud_fn : call sv_open2 : jp c,ud_fail
         ld (sv_h),a
         ld ix,ud_buf : ld bc,4 : rst 8 : db $9D : jp c,ud_bad       ; a NEX file starts with "Next"
@@ -948,7 +922,7 @@ pg_update:
 .hl:    jr .hl
 ud_bad: call sv_close
 ud_fail:
-        call ud_unlink
+        call ud_unlink : call ud_unl_slc
         call clear_screen
         ld a,PROMPT_C : ld (txt_fg),a
         ld hl,s_ud7 : ld c,11 : call print_cen
@@ -965,6 +939,39 @@ ud_nex:     db "3DSC3.NEX",0
 ud_old:     db "3DSC3.OLD",0
 ud_show:    dw 0
 ud_had:     db 0
+ud_append:                                                      ; the slice file is added to the new file at part * 60928
+        ld b,1 : ld ix,ud_slc : call sv_open2 : ret c
+        ld (ud_h1),a
+        ld a,(ud_part) : or a : ld b,$0E : jr z,.o
+        ld b,$0A
+.o:     ld ix,ud_fn : call sv_open2 : jr c,.e1
+        ld (ud_h2),a
+        ld a,(ud_part) : or a : jr z,.cp
+        ld d,a : ld e,$EE : mul d,e : ld c,d : ld d,e : ld e,0 : ld b,0
+        ld a,(ud_h2) : ld l,0 : ld ix,0 : rst 8 : db $9F : jr c,.e2
+.cp:    nextreg REG_MMU6,NET_PG
+.l:     ld a,(ud_h1) : ld ix,$C000 : ld bc,8192 : rst 8 : db $9D : jr c,.e2
+        ld a,b : or c : jr z,.ok
+        ld a,(ud_h2) : ld ix,$C000 : rst 8 : db $9E : jr c,.e2
+        jr .l
+.ok:    ld a,(ud_h2) : rst 8 : db $9B
+        ld a,(ud_h1) : rst 8 : db $9B
+        or a : ret
+.e2:    ld a,(ud_h2) : rst 8 : db $9B
+.e1:    ld a,(ud_h1) : rst 8 : db $9B
+        scf : ret
+ud_unl_slc:
+        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
+        ld a,'*' : ld ix,ud_slc : rst 8 : db $AD : ret
+s_cp:       db "&part=",0
+s_csl:      db " -f 3DSC3.SLC",0
+ud_slc:     db "3DSC3.SLC",0
+ud_dpos:    dw 0
+ud_np:      db 0
+ud_part:    db 0
+ud_step:    db 0
+ud_h1:      db 0
+ud_h2:      db 0
 ud_unlink:
         nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
         ld a,'*' : ld ix,ud_fn : rst 8 : db $AD : ret
@@ -972,8 +979,7 @@ s_udp:      db "3DSC3_",0
 s_ude:      db ".NEX",0
 s_nx:       db "Next"
 s_ud1:      db "DOWNLOADING THE UPDATE",0
-s_ud2:      db "THIS CAN TAKE A MINUTE",0
-s_ud3:      db "PLEASE WAIT",0
+s_ud3:      db "DO NOT SWITCH OFF",0
 s_ud4:      db "UPDATE DOWNLOADED",0
 s_ud5:      db "LOAD IT TO PLAY THE NEW BUILD",0
 s_ud6:      db "PRESS ANY KEY TO RESTART",0

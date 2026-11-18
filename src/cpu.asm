@@ -52,7 +52,8 @@ init_cpu:                                           ; set up the four cars from 
 .nt2:   ld a,(ix+23) : cp 1 : jr z,.hum
         call nearest_wp : ld (ix+6),a                 ; computer car: first waypoint of its lane
         jr .nx
-.hum:   ld a,c : ld d,a : ld e,PCS : mul d,e : ld hl,hctx : add hl,de : ld (ix+26),l : ld (ix+27),h
+.hum:   pop bc : push bc                              ; C = slot again (grid_pos etc. changed it: the cars all shared one context!)
+        ld a,c : ld d,a : ld e,PCS : mul d,e : ld hl,hctx : add hl,de : ld (ix+26),l : ld (ix+27),h
         call pc_reset
         ld a,(ix+4) : ld (heading),a : ld (mov_head),a
         ld l,(ix+26) : ld h,(ix+27) : ex de,hl : ld hl,pc_block : ld bc,PCS : ldir
