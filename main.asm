@@ -945,8 +945,6 @@ gf:     db 0
 hud_static:
         xor a : ld (fr_x),a : ld (fr_y),a : ld (fr_c),a : ld a,255 : ld (fr_w),a : ld a,12 : ld (fr_h),a
         call fill_rect                               ; wipe the top bar: nothing of the last race stays behind
-        xor a : ld (fr_x),a : ld a,12 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,2 : ld (fr_h),a : ld a,3 : ld (fr_c),a
-        call fill_rect                               ; white line under it, the same white as the panels' frames
         ld a,1 : ld (hud_dirty),a
         jp hud_update
 
@@ -1157,10 +1155,6 @@ draw_board:
 ; running at 90 degrees to the direction of travel (marched out each way until the fence or the road edge)
 draw_best:                                          ; bottom-right corner: L BEST (local) / O BEST (online) ss.tS, swapped every 5 seconds
         ld a,6 : ld (bt_f),a
-        ld a,158 : ld (fr_x),a : ld a,182 : ld (fr_y),a : ld a,98 : ld (fr_w),a : ld a,2 : ld (fr_h),a : ld a,3 : ld (fr_c),a
-        call fill_rect                               ; white frame round the best-lap box: top ...
-        ld a,184 : ld (fr_y),a : ld a,2 : ld (fr_w),a : ld a,8 : ld (fr_h),a
-        call fill_rect                               ; ... and left edge
         jp hs_binit
 best_tick:                                          ; once per frame
         ld hl,bt_f : dec (hl) : ret nz
@@ -1476,7 +1470,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111844",0
+s_ver: db "26111845",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
