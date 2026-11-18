@@ -5,7 +5,7 @@
 #include <math.h>
 static uint8_t ram[224*8192]; static uint8_t mmu[8]={0xFF,0xFF,10,11,4,5,0,1};
 static uint8_t pad2; static uint8_t regs[256], nsel, pal[256], palidx, padval, ayreg; static int palsel;
-static int wcnt[8]; static unsigned long prof[65536]; static unsigned long wsum,wmax,last_exit; static int wn,wf_lastf; static unsigned wf_addr; static int cpu_bad[3]; static uint8_t spr[8]; static int sprn, patcount; static int mode=0; static uint8_t ay[16]; static int ras=0, frames=0;
+static int ifr; static unsigned long lastint; static int wcnt[8]; static unsigned long prof[65536]; static unsigned long wsum,wmax,last_exit; static int wn,wf_lastf; static unsigned wf_addr; static int cpu_bad[3]; static uint8_t spr[8]; static int sprn, patcount; static int mode=0; static uint8_t ay[16]; static int ras=0, frames=0;
 static uint8_t rd(void*u,uint16_t a){uint8_t p=mmu[a>>13]; return p==0xFF?0:ram[p*8192+(a&0x1FFF)];}
 static unsigned minsp; static uint16_t curpc; static void* zz; static void wr(void*u,uint16_t a,uint8_t v){ if(getenv("WW")&&a>=0xB1FF&&a<0xB210&&mmu[a>>13]==5){ static int nn=0; if(nn++<4) printf("WRITE %04X=%02X by pc=%04X ix=%04X sp=%04X frames=%d stk:",a,v,curpc,((struct z80*)zz)->ix,((struct z80*)zz)->sp,frames); if(nn==1){ unsigned sp=((struct z80*)zz)->sp; for(int q=0;q<10;q++) printf(" %02X%02X",ram[5*8192+((sp+2*q+1)&0x1FFF)],ram[5*8192+((sp+2*q)&0x1FFF)]); } printf("\n"); }uint8_t p=mmu[a>>13]; if(p!=0xFF) ram[p*8192+(a&0x1FFF)]=v;}
 static void nreg(uint8_t r,uint8_t v){ regs[r]=v;
@@ -16,15 +16,16 @@ static void nreg(uint8_t r,uint8_t v){ regs[r]=v;
   else if(r==0x41){ if(palsel==1) pal[palidx]=v; palidx++; } }
 static uint8_t pin(z80*z,uint8_t lo){ uint16_t p=(z->b<<8)|lo;
   if(lo==0x1F) return padval; if(lo==0x37) return pad2;
+  if(lo==0xFE&&getenv("DBGT")){ int f=frames-60; if(f>=0&&f<50&&(f%10)<4){ int k=f/10; unsigned want[5]={0xFD,0xFB,0x7F,0xDF,0xFD}, bit[5]={2,2,4,3,4}; if(z->b==want[k]) return 0xFF&~(1<<bit[k]); } }
   if(lo==0xFE){ if(getenv("PAUSEF")&&(z->b==0xFE||z->b==0x7F)){ int pf=atoi(getenv("PAUSEF")); if((frames>=pf&&frames<pf+4)||(frames>=pf+50&&frames<pf+54)) return 0xFE; } return 0xFF; }
-  if(p==0x253B){ if(nsel==0x1F){ uint8_t r=ras&255; ras+=4; if(ras>=312){ras=0;} if(r==192)frames++; return r;} return regs[nsel]; }
+  if(p==0x253B){ if(nsel==0x1F){ uint8_t r=ras&255; ras+=4; if(ras>=312){ras=0; ifr++; z80_gen_int(z,0xFF);} if(r==192)frames++; return r;} return regs[nsel]; }
   return 0xFF; }
 static void pout(z80*z,uint8_t lo,uint8_t v){ uint16_t p=(z->b<<8)|lo;
   if(p==0x243B) nsel=v; else if(p==0x253B) nreg(nsel,v);
   else if(lo==0x57){ spr[sprn++&7]=v; } else if(lo==0x5B) patcount++;
-  else if(p==0xFFFD) ayreg=v&15; else if(p==0xBFFD){ ay[ayreg]=v; if(getenv("AYLOG")) printf("AY f%d r%d=%d\n",frames,ayreg,v); } }
-static unsigned symaddr(const char*n){ FILE*f=fopen("build/main.sym","r"); char l[256],nm[128]; unsigned a;
-  while(fgets(l,256,f)){ if(sscanf(l,"%127[^:]: EQU 0x%x",nm,&a)==2 && !strcmp(nm,n)){fclose(f);return a;} } fclose(f); fprintf(stderr,"no sym %s\n",n); exit(2);}
+  else if(p==0xFFFD) ayreg=v&15; else if(p==0xBFFD){ ay[ayreg]=v; if(getenv("AYLOG")) printf("AY f%d r%d=%d\n",ifr,ayreg,v); } }
+static unsigned symaddr(const char*n){ static char cn[256][64]; static unsigned ca[256]; static int cc=0; for(int q=0;q<cc;q++) if(!strcmp(cn[q],n)) return ca[q]; FILE*f=fopen("build/main.sym","r"); char l[256],nm[128]; unsigned a;
+  while(fgets(l,256,f)){ if(sscanf(l,"%127[^:]: EQU 0x%x",nm,&a)==2 && !strcmp(nm,n)){fclose(f); if(cc<256&&strlen(n)<64){ strcpy(cn[cc],n); ca[cc++]=a; } return a;} } fclose(f); fprintf(stderr,"no sym %s\n",n); exit(2);}
 static void dump(const char*fn){ FILE*f=fopen(fn,"wb"); fprintf(f,"P6 256 192 255\n");
   for(int i=0;i<256*192;i++){ uint8_t c=pal[ram[18*8192+i]]; uint8_t r=(c>>5)*255/7,g=((c>>2)&7)*255/7,b=(c&3)*255/3; fputc(r,f);fputc(g,f);fputc(b,f);} fclose(f);}
 static void pk(unsigned a,uint8_t v){ static unsigned PB=0,HC=0; if(!PB){ PB=symaddr("pc_block"); HC=symaddr("hctx"); } wr(0,a,v); wr(0,a-PB+HC,v); }
@@ -39,7 +40,7 @@ int main(int argc,char**argv){
   unsigned a_pgn=symaddr("pg_names"), a_pgc=symaddr("pg_choice"), a_rdy=symaddr("pg_ready"); int cho_hit=0;
   int trk=argc>1?atoi(argv[1]):0; int accel_frames=argc>2?atoi(argv[2]):200; mode=argc>3?atoi(argv[3]):0; const char*shot=argc>4?argv[4]:0;
   int sx=0,sy=0,ex=0,ey=0,es=0,ehd=0,elp=0; int lastf=-1, phase=0; int startedrace=0; int lastp2=-1, barn=0, ms_done=0, updt_done=0, upd_hit=0; unsigned long guard=0;
-  while(frames<4+accel_frames+40 && guard<900000000UL){
+  while(frames<4+accel_frames+40 && guard<(getenv("GUARD")?strtoul(getenv("GUARD"),0,10):900000000UL)){
     uint16_t pc=z.pc; curpc=pc; unsigned long c0=z.cyc; uint8_t o0=rd(0,pc),o1=rd(0,pc+1);
     if(pc==8){ static FILE*efs[16]; FILE*ef=efs[z.a&15]; uint16_t ra=rd(0,z.sp)|(rd(0,z.sp+1)<<8); int fn=rd(0,ra); z.sp+=2; z.pc=ra+1; z.cf=0; z.cyc+=100;
       if(fn==0x9A){ char nm[32]; int i=0; for(;i<31&&(nm[i]=rd(0,z.ix+i));i++); const char*sp=getenv("SAV")?getenv("SAV"):"build/3DSC3.SAV"; if(!strcmp(nm,"3DSC3.TMP")) sp="build/3DSC3.TMP"; static char fp[64]; if(!strncmp(nm,"3DSC3_",6)){ snprintf(fp,64,"build/%s",nm); sp=fp; } if(!strcmp(nm,"3DSC3.SLC")){ static char sl[64]; snprintf(sl,64,"build/%s",nm); sp=sl; } if(z.b==0x0A){ ef=fopen(sp,"r+b"); if(!ef) ef=fopen(sp,"w+b"); } else ef=fopen(sp,(z.b&2)?"wb":"rb"); if(!ef){ z.cf=1; z.a=5; } else { int h=1; while(efs[h]) h++; efs[h]=ef; z.a=h; } printf("esx open %s mode %d ok %d ra=%04X sp=%04X f=%d\n",nm,z.b,ef!=0,ra,z.sp,frames); }
@@ -57,7 +58,8 @@ int main(int argc,char**argv){
     else if(getenv("MUSLOG") && pc==symaddr("menu_run.loop") && frames>=atoi(getenv("MUSLOG"))){ frames=4+accel_frames+40; }
     else if(getenv("MENUSHOT") && pc==symaddr("menu_run.loop") && !ms_done && (ms_done=1)){ dump(getenv("MENUSHOT")); frames=4+accel_frames+40; }
     else if(getenv("INSTR") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("menu_instr"); }
-    else if(getenv("INSTR") && pc==symaddr("pg_instr.w2") && !ms_done && (ms_done=1)){ dump("build/instr.ppm"); frames=4+accel_frames+40; }
+    else if(getenv("DBGT") && pc==symaddr("pg_instr.w2") && frames>=220 && !ms_done && (ms_done=1)){ printf("trk_max=%d\n",rd(0,symaddr("trk_max"))); dump("build/instr.ppm"); frames=4+accel_frames+40; }
+    else if(getenv("INSTR") && !getenv("DBGT") && pc==symaddr("pg_instr.w2") && !ms_done && (ms_done=1)){ dump("build/instr.ppm"); frames=4+accel_frames+40; }
     else if(getenv("BARSHOT") && pc==symaddr("ud_bar.k") && (++barn==2)){ dump("build/bar.ppm"); frames=4+accel_frames+40; }
     else if(pc==a_pgc && (cho_hit=1)&&0){}
     else if(pc==a_rdy && !getenv("READY")){ z.pc=rd(0,z.sp)|(rd(0,z.sp+1)<<8); z.sp+=2; z.cyc+=10; }
@@ -74,12 +76,12 @@ int main(int argc,char**argv){
     if(z.pc==wf_addr && frames>40){ if(last_exit){ unsigned long w=z.cyc-last_exit; wsum+=w; wn++; if(w>wmax)wmax=w; if(w>(getenv("SPK")?atol(getenv("SPK")):600000)) printf("SPIKE f%d w=%lu\n",frames,w); } }
     if(frames!=wf_lastf){ wf_lastf=frames; last_exit=z.cyc; }
     if(frames!=lastf){ lastf=frames;
-      int sf=getenv("MUSLOG")?100000:4;
+      int sf=(getenv("MUSLOG")||getenv("DBGT"))?100000:4;
       if(getenv("MSEL")&&frames==30) dump("build/hs.ppm");
       if(frames==3 && !phase){ dump("build/test_select.ppm"); phase=1; }
       padval=0;
       if(getenv("MUSPOKE")&&frames==3){ int pg,pt; sscanf(getenv("MUSPOKE"),"%d,%d",&pg,&pt); wr(0,symaddr("mus_pg"),pg); wr(0,symaddr("mus_ptr"),pt&255); wr(0,symaddr("mus_ptr")+1,pt>>8); }
-      if(frames==1){ wr(0,symaddr("ctl"),0); wr(0,symaddr("ctl")+1,6); wr(0,symaddr("ctl")+2,6); wr(0,symaddr("ctl")+3,6); wr(0,symaddr("menu_sel"),getenv("MSEL")?atoi(getenv("MSEL")):0); wr(0,A_TI,trk); wr(0,symaddr("difficulty"),getenv("DIFF")?atoi(getenv("DIFF")):0); }
+      if(frames==1){ wr(0,symaddr("ctl"),getenv("ALLCPU")?6:0); wr(0,symaddr("ctl")+1,6); wr(0,symaddr("ctl")+2,6); wr(0,symaddr("ctl")+3,6); wr(0,symaddr("menu_sel"),getenv("MSEL")?atoi(getenv("MSEL")):0); wr(0,A_TI,trk); wr(0,symaddr("difficulty"),getenv("DIFF")?atoi(getenv("DIFF")):0); }
       if(frames>=sf && frames<=sf+2) padval=0x80;
       if(getenv("PADDWN")&&frames>=20&&frames<=22) padval=0x04;
       if(getenv("PADRGT")&&frames>=10&&frames<40&&((frames-10)/3)%2==0&&(frames-10)%3==0+0) padval=0x01;

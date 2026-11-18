@@ -17,13 +17,15 @@ start:
         call init_hw
         call input_init
         call ay_init
+        im 2 : ld a,high mus_vec : ld i,a                 ; the tune runs from the frame interrupt (only enabled outside the race)
         call hs_init
         xor a
         ld (track_idx),a
 
 ; ------------------------------------------------------------------ menu
 menu:
-        call mus_resume                 ; music plays on every screen but the race
+        ld a,(trk_max) : ld b,a : ld a,(track_idx) : cp b : jr c,.tk : xor a : ld (track_idx),a      ; only the finished tracks are on offer (unless DEBUG)
+.tk:    call mus_resume                 ; music plays on every screen but the race
         call menu_run                   ; returns when START is chosen
         xor a : ld (phase),a            ; every visit starts with practice
 ; ------------------------------------------------------------------ practice / race session
@@ -63,7 +65,14 @@ session:
         jr nz,.over
         ld bc,$FEFE : in a,(c) : bit 0,a : jr nz,.np  ; BREAK (Caps Shift + Space): pause
         ld b,$7F : in a,(c) : bit 0,a : jr nz,.np
-        call hs_pause
+        call game_keys : jr nz,.np                  ; (ghost key presses while driving are not BREAK)
+.bw:    call wait_frame                             ; BREAK does what ENTER / START does (the menu pauses the race): let go of it first
+        ld bc,$FEFE : in a,(c) : bit 0,a : jr nz,.bu
+        ld b,$7F : in a,(c) : bit 0,a : jr z,.bw
+.bu:    call hs_quitq
+        ld a,(qt_res) : or a : jr z,.np
+        cp 1 : jp nz,.quit
+        jp .over
 .np:
         ld a,(lt_s) : or a : jr z,.go
         call light_step                             ; traffic light: cars held on the grid until green
@@ -82,7 +91,7 @@ session:
         call show_results
         ld a,(phase) : or a : jr z,.pr
         ld a,(nxt_flag) : or a : jp z,menu          ; race over: MAIN MENU ...
-        ld a,(track_idx) : inc a : cp 24 : jr c,.nt  ; ... or the NEXT TRACK, starting with its practice
+        ld a,(trk_max) : ld b,a : ld a,(track_idx) : inc a : cp b : jr c,.nt  ; ... or the NEXT TRACK, starting with its practice
         xor a
 .nt:    ld (track_idx),a : xor a : ld (phase),a : jp session
 .pr:
@@ -98,7 +107,17 @@ silence_all:
 end_in:                                             ; NZ when Symbol Shift and Space are both down
         ld bc,$7FFE : in a,(c) : and 3 : jr z,.y
         xor a : ret
-.y:     ld a,1 : or a : ret
+.y:     call game_keys                              ; a membrane keyboard fakes Symbol Shift when Space, O and P are held: with a driving key down it is not an abort
+        jr nz,.n
+        ld a,1 : or a : ret
+.n:     xor a : ret
+
+game_keys:                                          ; NZ when any of Q A O P is down
+        ld bc,$FBFE : in a,(c) : bit 0,a : jr z,.d
+        ld b,$FD : in a,(c) : bit 0,a : jr z,.d
+        ld b,$DF : in a,(c) : and 3 : cp 3 : jr nz,.d
+        xor a : ret
+.d:     or 1 : ret
 
 check_end:                                          ; race: a car that has run all its laps takes its place and leaves the track; over when all have
         ld a,(race_over) : or a : ret nz
@@ -122,7 +141,7 @@ check_end:                                          ; race: a car that has run a
 fin_n:  db 0
 
 init_race:
-        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (cs_k),a : ld (lt_s),a : ld (fr_cnt),a : ld (fin_n),a
+        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (snd_hit),a : ld (cs_k),a : ld (lt_s),a : ld (fr_cnt),a : ld (fin_n),a
         call silence_all
         ld hl,180 : ld (cd_s),hl
         ld hl,0 : ld (lap_show),hl : ld (lap_show+2),hl
@@ -303,8 +322,7 @@ wait_frame:                                         ; wait for raster line 192
         cp 192 : jr nz,.w1
 .w2:    ld a,$1F : out (c),a : inc b : in a,(c) : dec b
         cp 192 : jr z,.w2
-        ld a,(mus_on) : or a : ret z
-        jp mus_tick                                         ; menu music: one AY frame per screen frame outside the race
+        ret
 
 clear_screen:
         ld a,18
@@ -587,7 +605,8 @@ update_car:
         ld hl,(new_y) : ld (car_y),hl
         xor a : ld (blocked),a
         ret
-.hit:   ld b,1                                      ; scrape: swing the travel direction away from the fence, nearest free angle first
+.hit:   call snd_impact
+        ld b,1                                      ; scrape: swing the travel direction away from the fence, nearest free angle first
 .k:     push bc : ld a,(eff_h) : add a,b : and NHEAD-1 : call try_head : pop bc : jr nc,.ok
         push bc : ld a,(eff_h) : sub b : and NHEAD-1 : call try_head : pop bc : jr nc,.ok
         inc b : ld a,b : cp 8 : jr c,.k
@@ -926,6 +945,8 @@ gf:     db 0
 hud_static:
         xor a : ld (fr_x),a : ld (fr_y),a : ld (fr_c),a : ld a,255 : ld (fr_w),a : ld a,12 : ld (fr_h),a
         call fill_rect                               ; wipe the top bar: nothing of the last race stays behind
+        xor a : ld (fr_x),a : ld a,12 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,2 : ld (fr_h),a : ld a,3 : ld (fr_c),a
+        call fill_rect                               ; white line under it, the same white as the panels' frames
         ld a,1 : ld (hud_dirty),a
         jp hud_update
 
@@ -1136,6 +1157,10 @@ draw_board:
 ; running at 90 degrees to the direction of travel (marched out each way until the fence or the road edge)
 draw_best:                                          ; bottom-right corner: L BEST (local) / O BEST (online) ss.tS, swapped every 5 seconds
         ld a,6 : ld (bt_f),a
+        ld a,158 : ld (fr_x),a : ld a,182 : ld (fr_y),a : ld a,98 : ld (fr_w),a : ld a,2 : ld (fr_h),a : ld a,3 : ld (fr_c),a
+        call fill_rect                               ; white frame round the best-lap box: top ...
+        ld a,184 : ld (fr_y),a : ld a,2 : ld (fr_w),a : ld a,8 : ld (fr_h),a
+        call fill_rect                               ; ... and left edge
         jp hs_binit
 best_tick:                                          ; once per frame
         ld hl,bt_f : dec (hl) : ret nz
@@ -1279,44 +1304,53 @@ cpu_sound:
 cs_k:   db 0
 snd_lead: dw 0
 
-; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG mapped at $C000)
+; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG; runs from the 50 Hz interrupt)
 MUS_PG      equ 84
+MUS_WIN     equ $4000                                       ; the tune's page is borrowed into slot 2 for a moment each frame
 mus_on:     db 0
+mus_sv:     db 0
 mus_pg:     db MUS_PG
-mus_ptr:    dw $C000
+mus_ptr:    dw MUS_WIN
 mus_i:      db 0
             ALIGN 16
 mus_sh:     ds 16                                           ; shadow of the AY registers the tune has written
 
-mus_resume:                                                 ; (re)start: put every register the tune owns back, then carry on where it was
+mus_resume:                                                 ; (re)start: put every register the tune owns back, then let the interrupt carry on where it was
+        di
+        im 2 : ld a,high mus_vec : ld i,a
         ld hl,mus_sh : ld d,0 : ld b,13
 .r:     ld e,(hl) : inc hl
         ld a,d : push hl : push bc : call ay_write : pop bc : pop hl
         inc d : djnz .r
         ld a,1 : ld (mus_on),a
+        ei
         ret
 
-mus_off:                                                    ; race screen: silence the tune, the engine sound takes the chip
+mus_off:                                                    ; race screen: interrupts off, silence the tune, the engine sound takes the chip
+        di
         xor a : ld (mus_on),a
         ld e,0 : ld a,8 : call ay_write
         ld e,0 : ld a,9 : call ay_write
         ld e,0 : ld a,10 : call ay_write
         jp ay_init
 
-mus_tick:                                                   ; one 50 Hz frame of the tune; leaves slot 6 as it found it
-        push bc : push de : push hl
-        ld bc,PORT_NEXTREG_SEL : ld a,REG_MMU6 : out (c),a : inc b : in a,(c)
-        push af                                             ; the page that was in slot 6
-.rd:    ld a,(mus_pg) : nextreg REG_MMU6,a
+mus_isr:                                                    ; one 50 Hz frame of the tune; leaves slot 2 and every register as it found them
+        push af
+        ld a,(mus_on) : or a : jr nz,.go
+        pop af : ei : reti
+.go:    push bc : push de : push hl
+        ld bc,PORT_NEXTREG_SEL : ld a,REG_MMU2 : out (c),a : inc b : in a,(c)
+        push af                                             ; the page that was in slot 2
+.rd:    ld a,(mus_pg) : nextreg REG_MMU2,a
         ld hl,(mus_ptr)
         ld e,(hl) : inc hl : ld d,(hl) : inc hl
         bit 7,d : jr z,.nn
         ld a,(mus_pg) : inc a : ld (mus_pg),a
-        ld hl,$C000 : ld (mus_ptr),hl : jr .rd              ; this frame continues on the next page
-.nn:    bit 6,d : jr z,.go
+        ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; this frame continues on the next page
+.nn:    bit 6,d : jr z,.gv
         ld a,MUS_PG : ld (mus_pg),a
-        ld hl,$C000 : ld (mus_ptr),hl : jr .rd              ; end of the tune: round again
-.go:    xor a : ld (mus_i),a
+        ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; end of the tune: round again
+.gv:    xor a : ld (mus_i),a
 .l:     srl d : rr e : jr nc,.n
         ld a,(hl) : inc hl
         ld b,a                                              ; B = value
@@ -1325,9 +1359,9 @@ mus_tick:                                                   ; one 50 Hz frame of
         push de : ld a,c : ld e,b : call ay_write : pop de
 .n:     ld a,(mus_i) : inc a : ld (mus_i),a : cp 14 : jr nz,.l
         ld (mus_ptr),hl
-        pop af : nextreg REG_MMU6,a
-        pop hl : pop de : pop bc
-        ret
+        pop af : nextreg REG_MMU2,a
+        pop hl : pop de : pop bc : pop af
+        ei : reti
 
 ; ----------------------------------------------------------------- sound
 ay_write:                                           ; A = reg, E = value
@@ -1343,7 +1377,25 @@ ay_silence:
         ld a,8 : ld e,0
         jp ay_write
 
-sound_update:                                       ; lead human car: engine note + noise follows speed, tyre screech from any human
+sound_update:
+        call sound_update0
+        jp snd_imp
+
+snd_impact:                                         ; any crash (fence or car): a short, quiet thud on channel B, at most one per 12 frames
+        ld a,(snd_hit) : or a : ret nz
+        ld a,12 : ld (snd_hit),a
+        ret
+snd_imp:                                            ; 6 frames of noise on B (volume 9 down to 4), then 6 frames before it can sound again
+        ld a,(snd_hit) : or a : ret z
+        dec a : ld (snd_hit),a
+        cp 6 : jr c,.fin
+        push af : ld e,$22 : ld a,7 : call ay_write : ld e,20 : ld a,6 : call ay_write : pop af
+        sub 2 : ld e,a : ld a,9 : jp ay_write
+.fin:   cp 5 : ret nz
+        ld e,12 : ld a,6 : jp ay_write
+snd_hit:    db 0
+
+sound_update0:                                      ; lead human car: engine note + noise follows speed, tyre screech from any human
         ld a,(snd_skid) : or a : jr z,.ns
         dec a : ld (snd_skid),a
 .ns:    ld hl,0 : ld (snd_lead),hl
@@ -1408,7 +1460,9 @@ mrows:          db 10                                             ; menu rows: 1
 hs_update:      call hs_on : call pg_update : jp hs_off
 hs_check_all:   call hs_on : call pg_check : push af : call hs_off : pop af : ret
 nb:             ds 160                                           ; dot command line: must stay visible while the OS runs
-hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL = command line): the OS memory layout back first,
+hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_on),a : pop af      ; the tune waits while the OS runs the dot command
+                push hl : ld e,0 : ld a,8 : call ay_write : ld e,0 : ld a,10 : call ay_write : ld e,0 : ld a,9 : call ay_write : pop hl
+                nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL = command line): the OS memory layout back first,
                 nextreg REG_MMU2,10 : nextreg REG_MMU3,11        ; kept in main memory so nothing paged out takes this code with it
                 nextreg REG_MMU6,0 : nextreg REG_MMU7,1
                 push hl : pop ix                                 ; M_EXECCMD wants the command line in IX
@@ -1416,10 +1470,13 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 xor a : out ($FE),a : nextreg $4A,0              ; the dot command leaves a white border: back to black
                 di                                               ; the OS may leave interrupts on; here they would jump into screen memory
                 nextreg REG_MMU7,HS_PG
+                push af : ld a,(mus_sv) : or a : jr z,.nm
+                call mus_resume                                  ; interrupt mode and vector back, tune carries on
+.nm:            pop af
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111843",0
+s_ver: db "26111844",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1460,6 +1517,7 @@ snd_skid:   db 0
 race_over:  db 0
 menu_sel:   db 0
 track_idx:  db 0
+trk_max:    db 4                                    ; tracks on offer: the finished ones (1 to 4); typing DEBUG on the instructions page unlocks all 24
 prev_in:    db 0
 laps_i:     db 3
 txt_col:    db 0
@@ -1529,6 +1587,10 @@ lap_tick:                                           ; once per frame; redraw the
             INCLUDE "build/tracks.inc"
 font:       INCBIN "build/font.bin"
 code_end:
+            ORG $BA00
+mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
+            ORG $BBBB
+            JP mus_isr
 
 ; --------------------------------------------------- track banks (16K each)
             INCLUDE "src/trackdata.asm"

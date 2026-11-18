@@ -357,7 +357,8 @@ cpu_step:
         ld hl,(cm_y) : ld (ix+2),l : ld (ix+3),h
         ld a,(ix+30) : or a : jr z,.nh0 : dec (ix+30)
 .nh0:   ret
-.hit:   inc (ix+30) : ld a,(ix+30) : cp 24 : jr c,.hn      ; 24 net hit frames: the car is wedged, so reverse out
+.hit:   call snd_impact
+        inc (ix+30) : ld a,(ix+30) : cp 24 : jr c,.hn      ; 24 net hit frames: the car is wedged, so reverse out
         xor a : ld (ix+30),a : ld (ix+31),34
 .hn:    ld a,(ix+3) : ld d,a : ld a,(cm_x+1) : ld e,a                      ; scrape along the fence: try the x part of the move alone,
         call solid_at : jr c,.sy
@@ -550,6 +551,7 @@ cc_pair:                                            ; IX, IY -> {x,y,speed,activ
         ld a,(ix+1) : sub (iy+1) : ld e,0 : jr nc,.y1
         neg : ld e,1
 .y1:    cp 5 : ret nc : ld c,a                      ; C = |dy|, E = 1 when A is above B
+        call snd_impact                             ; cars touch: thud
         ld a,9 : sub b : ld h,a                     ; penetration in x
         ld a,5 : sub c : add a,a : ld l,a           ; penetration in y (doubled for the iso squash)
         push hl : push de

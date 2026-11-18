@@ -39,9 +39,12 @@ menu_run:
 .b9:    cp 8 : jr nz,.start
         call hs_view : jp menu_run
 .chg:   call menu_change : call menu_draw : jr .loop
-.start: ld hl,ctl : ld b,4                          ; at least one human car is needed
+.start: ld hl,ctl : ld b,4                          ; humans enter names; all-computer races start straight away
 .h:     ld a,(hl) : cp 6 : jr c,.ok
         inc hl : djnz .h
+        ld hl,ctl : ld b,4                          ; no human: four computers is fine (no names to enter), but somebody has to race
+.cc:    ld a,(hl) : cp 6 : ret z
+        inc hl : djnz .cc
         jp .loop
 .ok:    jp hs_names                               ; every human player enters a name for the best laps first
 
@@ -63,7 +66,7 @@ menu_change:                                        ; E = row, D = +1 / -1
 .o:     jr nz,.o1
         ld a,(difficulty) : ld b,4 : call wrapadd : ld (difficulty),a : ret
 .o1:    cp 5 : jr nz,.o2
-        ld a,(track_idx) : ld b,24 : call wrapadd : ld (track_idx),a : ret
+        ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : ret
 .o2:    cp 6 : ret nz
         ld a,(laps_i) : ld b,8 : call wrapadd : ld (laps_i),a
         add a,3 : ld (laps_total),a                  ; 3..10 laps, no practice-only
@@ -98,7 +101,7 @@ menu_draw:                                          ; selected row: "< value >" 
 .o:     cp 7 : jp nc,.cen
         ld a,4 : ld (txt_fg),a
         ld a,c : sub 4 : add a,a : ld e,a : ld d,0 : ld hl,row_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
-        ld a,(md_row) : ld c,a : ld b,3 : call print_at
+        ld a,(md_row) : ld c,a : ld b,2 : call print_at
         pop bc : push bc
         ld a,c : cp 4 : jr nz,.r5
         ld a,(difficulty) : add a,a : ld e,a : ld d,0 : ld hl,diff_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
@@ -216,11 +219,15 @@ show_results:
         ld a,(rs_slot) : add a,a : ld e,a : ld d,0 : ld hl,col_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl      ; the colour name ...
         ld a,(rs_slot) : ld e,a : ld d,0 : push hl : ld hl,ctl : add hl,de : ld a,(hl) : pop hl : cp 6 : jr nc,.cn
         ld a,(rs_slot) : call hs_pname              ; ... or the player's own name for a human car
-.cn:    ld (rs_str),hl : call tlen : ld e,a : ld a,19 : sub e : srl a : ld (txt_col),a      ; the whole line centred
+.cn:    ld (rs_str),hl : call tlen
+        ld e,a : ld a,6 : sub e : srl a : add a,11 : ld (rs_nc),a   ; columns: #n left aligned, the name centred in a 6-wide field (YELLOW is the widest), the time right aligned
+        ld a,6 : ld (txt_col),a
         ld a,'#' : call print_char
         pop bc : push bc : ld a,c : add a,'1' : call print_char
         ld a,' ' : call print_char : ld a,'-' : call print_char : ld a,' ' : call print_char
+        ld a,(rs_nc) : ld (txt_col),a
         ld hl,(rs_str) : call print_str
+        ld a,17 : ld (txt_col),a
         ld a,' ' : call print_char : ld a,'-' : call print_char : ld a,' ' : call print_char
         ld a,(rs_slot) : ld d,a : ld e,CPU_SZ : mul d,e : ld hl,cpu_t+14 : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld a,h : cp 4 : jr c,.tt
@@ -247,6 +254,7 @@ show_results:
         ret
 rs_slot: db 0
 rs_str:  dw 0
+rs_nc:   db 0
 res_col: db 7,8,7,6
 s_pfc:    db "PRESS FIRE TO CONTINUE",0
 s_pover:  db "PRACTICE IS OVER",0

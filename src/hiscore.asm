@@ -270,7 +270,7 @@ pg_view:
         xor a : ld (pl_on),a
         ret
 .sw:    ld (hv_mode),a : jp .redraw
-.ch:    ld a,(track_idx) : ld b,24 : call wrapadd : ld (track_idx),a : jp .redraw
+.ch:    ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : jp .redraw
 hv_sv: db 0
 hv_p:  dw 0
 hv_i:  db 0
