@@ -11,6 +11,8 @@ pg_instr:
         push hl : ex de,hl : push bc
         ld a,20 : push hl : ld de,i1 : or a : sbc hl,de : pop hl : jr z,.c4      ; the two headings are green
         push hl : ld de,i5 : or a : sbc hl,de : pop hl : jr z,.c4
+        push hl : ld de,i12 : or a : sbc hl,de : pop hl : jr z,.c4
+        push hl : ld de,i13 : or a : sbc hl,de : pop hl : jr z,.c4
         ld a,4
 .c4:    ld (txt_fg),a : call print_cen : pop bc : pop hl
         inc c : jr .l

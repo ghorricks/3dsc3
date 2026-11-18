@@ -36,11 +36,12 @@ int main(int argc,char**argv){
   struct{char k;int s,l;} ks[64]; int nk=0; for(int i=4;i<argc&&nk<64;i++){ char c; int s,l; if(sscanf(argv[i],"%c:%d:%d",&c,&s,&l)==3){ if(c=='_')c=' '; if(c=='#')c='\n'; ks[nk].k=c;ks[nk].s=s;ks[nk].l=l;nk++; } }
   for(int fr=0;fr<total;fr++){
     memset(keyrow,0xFF,8);
+    if(getenv("AUTOSPACE")){ int n=atoi(getenv("AUTOSPACE")); if(fr>=60 && (fr-60)%n<40) keyrow[7]&=~1; }
     for(int i=0;i<nk;i++) if(fr>=ks[i].s&&fr<ks[i].s+ks[i].l) for(int j=0;j<sizeof keys/sizeof*keys;j++) if(keys[j].k==ks[i].k) keyrow[keys[j].row]&=~(1<<keys[j].bit);
     unsigned long end=z.cyc+69888; z80_gen_int(&z,0xFF);
     while(z.cyc<end){ if(z.halted&&!z.iff1){z.iff1=z.iff2=1;} if(getenv("TRACEFR")&&fr==atoi(getenv("TRACEFR"))&&tr++<60) fprintf(stderr,"%04X: %02X %02X %02X  hl=%04X de=%04X bc=%04X a=%02X\n",z.pc,mem[z.pc],mem[z.pc+1],mem[z.pc+2],(z.h<<8)|z.l,(z.d<<8)|z.e,(z.b<<8)|z.c,z.a); if(getenv("HIST")&&fr>=300) hist[z.pc>>4]++; z80_step(&z); }
     if(getenv("PCDBG")&&fr%20==0) fprintf(stderr,"fr %d pc %04X sp %04X halted %d iff %d\n",fr,z.pc,z.sp,z.halted,z.iff1);
-    if(every&&fr%every==0){ char fn[128]; sprintf(fn,"%s%04d.ppm",pre,fr); shot(fn); }
+    if(every&&fr%every==0&&fr>=(getenv("SF")?atoi(getenv("SF")):0)&&fr<(getenv("ST")?atoi(getenv("ST")):1000000000)){ char fn[128]; sprintf(fn,"%s%04d.ppm",pre,fr); shot(fn); }
   }
   if(getenv("HIST")) for(int i=0;i<4096;i++) if(hist[i]>20000) fprintf(stderr,"pc %04X0 x%d\n",i,hist[i]); if(getenv("PORTS")) for(int i=0;i<65536;i++) if(pcnt[i]>50) fprintf(stderr,"port %04X x%d\n",i,pcnt[i]); shot("orig/last.ppm"); { FILE*g=fopen("orig/final.bin","wb"); fwrite(mem,1,65536,g); fclose(g);}
   return 0; }

@@ -49,7 +49,9 @@ init_cpu:                                           ; set up the four cars from 
         ld a,c : and 3 : ld e,a : ld d,0 : ld hl,cap_adj : add hl,de : ld a,(ix+11) : add a,(hl) : ld (ix+11),a
         ld a,(track_idx) : cp 1 : jr nz,.nt2          ; track 2 is longer in the original: slower computer cars
         ld a,(ix+11) : sub 24 : ld (ix+11),a
-.nt2:   ld a,(ix+23) : cp 1 : jr z,.hum
+.nt2:   ld a,(difficulty) : cp 3 : jr nz,.nt3
+        ld (ix+11),255                                ; EXPERT: every car as fast as the player
+.nt3:   ld a,(ix+23) : cp 1 : jr z,.hum
         call nearest_wp : ld (ix+6),a                 ; computer car: first waypoint of its lane
         jr .nx
 .hum:   pop bc : push bc                              ; C = slot again (grid_pos etc. changed it: the cars all shared one context!)
@@ -603,7 +605,7 @@ zsign:   db 0
 zabs:    dw 0
 ord_y:   db 0,0,0,0
 slot_col: db 0,2,1,3                               ; slot -> car colour: BLUE, RED, GREEN, YELLOW
-; computer speed caps per difficulty (EASY, MEDIUM, EXPERT) and slot
+; computer speed caps per difficulty (EASY, MEDIUM, HARD, EXPERT = as fast as the player) and slot
 cap_adj: db 0,-5,3,-8
-cpu_caps: db 198,212,191,229, 214,228,206,242, 234,246,224,255
+cpu_caps: db 198,212,191,229, 214,228,206,242, 234,246,224,255, 255,255,255,255
 cpu_t:   ds CPU_SZ*CPU_N

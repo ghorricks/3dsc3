@@ -1365,7 +1365,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111839",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
+s_ver: db "26111840",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1399,7 +1399,7 @@ pc_end:
 PCS         equ pc_end-pc_block
 hctx:       ds PCS*4                                ; one context per car
 ctl:        db 0,6,6,6                              ; control choice per car: 0 KEMPSTON 1 KEMPSTON 2 2 INT2 L 3 INT2 R 4 CURSOR 5 KEYS 6 COMPUTER 7 UNWANTED
-difficulty: db 1                                    ; 0 EASY 1 MEDIUM 2 EXPERT
+difficulty: db 1                                    ; 0 EASY 1 MEDIUM 2 HARD 3 EXPERT
 laps_total: db 6
 fr_cnt:     db 0
 snd_skid:   db 0

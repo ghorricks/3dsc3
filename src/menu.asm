@@ -61,7 +61,7 @@ menu_change:                                        ; E = row, D = +1 / -1
 .taken: ld a,c : jr .st
 .ok:    ld c,a : ld a,(mc_i) : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld (hl),c : ret
 .o:     jr nz,.o1
-        ld a,(difficulty) : ld b,3 : call wrapadd : ld (difficulty),a : ret
+        ld a,(difficulty) : ld b,4 : call wrapadd : ld (difficulty),a : ret
 .o1:    cp 5 : jr nz,.o2
         ld a,(track_idx) : ld b,24 : call wrapadd : ld (track_idx),a : ret
 .o2:    cp 6 : ret nz
@@ -179,14 +179,15 @@ c5: db "KEYS QAOPSP",0
 c6: db "COMPUTER   ",0
 c7: db "UNWANTED   ",0
 row_names: dw rn1,rn2,rn3
-rn1: db "DIFFICULTY",0
+rn1: db "       CPU",0              ; right-aligned with TRACK and LAPS
 rn2: db "     TRACK",0              ; padded so the three labels are right-aligned
 rn3: db "      LAPS",0
 rn5: db "BEST LAPS",0
-diff_names: dw d0,d1,d2
+diff_names: dw d0,d1,d2,d3
 d0: db "EASY  ",0
 d1: db "MEDIUM",0
-d2: db "EXPERT",0
+d2: db "HARD  ",0
+d3: db "EXPERT",0
 
 ; ===================================================================== results after practice / race
 show_results:
