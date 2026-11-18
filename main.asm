@@ -1449,7 +1449,9 @@ upd_sel:        db "> UPDATE TO "                                 ; the same, se
 upd_sv:         ds 8
                 db " <",0
 mrows:          db 10                                             ; menu rows: 10, or 11 with the update item
-hs_update:      call hs_on : call pg_update : jp hs_off
+hs_update:      call mus_off                                     ; the tune stays off for the whole download (each slice used to stop and restart it)
+                call hs_on : call pg_update : call hs_off
+                jp mus_resume
 hs_check_all:   call hs_on : call pg_check : push af : call hs_off : pop af : ret
 nb:             ds 160                                           ; dot command line: must stay visible while the OS runs
 hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_on),a : pop af      ; the tune waits while the OS runs the dot command
@@ -1468,7 +1470,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111846",0
+s_ver: db "26111847",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
