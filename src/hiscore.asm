@@ -559,9 +559,30 @@ pg_instr:
         inc c : jr .l
 .w:     ld a,PROMPT_C : ld (txt_fg),a : ld hl,i11 : ld c,23 : call print_cen
 .wk:    call menu_in : or a : jr nz,.wk                ; let go of the key that brought us here
-.w2:    call wait_frame : call menu_in : or a : jr z,.w2
-.w3:    call wait_frame : call menu_in : or a : jr nz,.w3
+.w2:    call wait_frame : call jdraw : call menu_in : bit BST,a : jr z,.w2
+.w3:    call wait_frame : call menu_in : bit BST,a : jr nz,.w3
         ret
+; raw joystick ports, live (to find out which bits each stick really sends)
+jdraw:  ld bc,$001F : in a,(c) : ld hl,jb1 : call jbits
+        ld bc,$0037 : in a,(c) : ld hl,jb2 : call jbits
+        ld bc,$243B : ld a,5 : out (c),a : inc b : in a,(c) : ld hl,jb3 : call jbits
+        ld a,3 : ld (txt_fg),a
+        ld b,8 : ld c,17 : ld hl,jt1 : call print_at
+        ld b,8 : ld c,18 : ld hl,jt2 : call print_at
+        ld b,8 : ld c,19 : ld hl,jt3 : call print_at
+        ret
+jbits:  ld d,a : ld b,8
+.l:     ld a,'0' : rl d : adc a,0 : ld (hl),a : inc hl : djnz .l
+        ret
+jt1:    db "PORT 1F "
+jb1:    ds 8
+        db 0
+jt2:    db "PORT 37 "
+jb2:    ds 8
+        db 0
+jt3:    db "NEXTREG5 "
+jb3:    ds 8
+        db 0
 
 
 
