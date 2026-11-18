@@ -1365,7 +1365,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111838",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
+s_ver: db "26111839",0                         ; build version YYMMDDxx (xx = 01..99 per day) - bump on every delivered build
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

@@ -53,11 +53,6 @@ ud_bar: ld a,(ud_part) : ld hl,ud_np : cp (hl) : jr nz,.f
         ld a,(ud_fill) : or a : jr z,.nf
         ld (fr_w),a : ld a,32 : ld (fr_x),a : ld a,102 : ld (fr_y),a : ld a,8 : ld (fr_h),a
         ld a,20 : ld (fr_c),a : call fill_rect                  ; green: what is done
-.nf:    ld a,(ud_part) : inc a : ld hl,ud_np : cp (hl) : jr c,.k
-        ld a,(hl)
-.k:     add a,'0' : ld (ud_pt+5),a
-        ld a,(ud_np) : add a,'0' : ld (ud_pt+10),a
-        ld a,3 : ld (txt_fg),a : ld hl,ud_pt : ld c,15 : call print_cen
+.nf:
         ret
 ud_fill: db 0
-ud_pt:  db "PART 1 OF 7",0
