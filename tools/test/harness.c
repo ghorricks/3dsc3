@@ -94,12 +94,12 @@ int main(int argc,char**argv){
       if(startedrace && mode==6 && frames==r0+3){ pk(symaddr("boost_cnt"),3); wr(0,symaddr("hud_dirty"),1); }
       if(startedrace && mode==6 && frames>=r0){ /* CPU cars: idle player, sample positions */
         unsigned CT=symaddr("cpu_t"); int rf=frames-r0;
-        for(int k=0;k<3;k++){ unsigned b=CT+(k+1)*30; int cx=rd(0,b+1), cy=rd(0,b+3);
+        for(int k=0;k<3;k++){ unsigned b=CT+(k+1)*32; int cx=rd(0,b+1), cy=rd(0,b+3);
           int gb=(rd(0,0xD800+cy*32+(cx>>3))>>(7-(cx&7)))&1, wb=(rd(0,0xC000+cy*32+(cx>>3))>>(7-(cx&7)))&1;
           if(!gb||wb) cpu_bad[k]++; }
-        { static int ovl=0,tot=0; int px[4],py[4]; px[0]=rd(0,A_X+1); py[0]=rd(0,A_Y+1); for(int k=0;k<3;k++){ px[k+1]=rd(0,CT+(k+1)*30+1); py[k+1]=rd(0,CT+(k+1)*30+3);} for(int a=0;a<4;a++)for(int b=a+1;b<4;b++) if(abs(px[a]-px[b])<9&&abs(py[a]-py[b])<5) ovl++; tot++; if(rf==2790) printf("overlap pair-frames %d of %d frames\n",ovl,tot); }
+        { static int ovl=0,tot=0; int px[4],py[4]; px[0]=rd(0,A_X+1); py[0]=rd(0,A_Y+1); for(int k=0;k<3;k++){ px[k+1]=rd(0,CT+(k+1)*32+1); py[k+1]=rd(0,CT+(k+1)*32+3);} for(int a=0;a<4;a++)for(int b=a+1;b<4;b++) if(abs(px[a]-px[b])<9&&abs(py[a]-py[b])<5) ovl++; tot++; if(rf==2790) printf("overlap pair-frames %d of %d frames\n",ovl,tot); }
         if(rf%250==0||rf==3){ char fn[64]; sprintf(fn,"build/cpu_%04d.ppm",rf); dump(fn); }
-        if(rf==0){ printf("sl_x0 %d.%d sl_y0 %d.%d sl_h %d\n",rd(0,symaddr("sl_x0")+1),rd(0,symaddr("sl_x0")),rd(0,symaddr("sl_y0")+1),rd(0,symaddr("sl_y0")),rd(0,symaddr("sl_h"))); for(int k=0;k<4;k++) printf("slot%d lat %d (%d,%d) hd %d mode %d\n",k,rd(0,CT+k*30+8),rd(0,CT+k*30+1),rd(0,CT+k*30+3),rd(0,CT+k*30+4),rd(0,CT+k*30+23)); } if(rf%5==0){ for(int k=0;k<3;k++){ unsigned b=CT+(k+1)*30; printf("f%4d car%d pos(%3d,%3d) hd %2d spd %3d wp %3d lapf %4d best %5d bad %d bst %d t %d\n",rf,k+1,rd(0,b+1),rd(0,b+3),rd(0,b+4),rd(0,b+5),rd(0,b+6),rd(0,b+12)|(rd(0,b+13)<<8),rd(0,b+14)|(rd(0,b+15)<<8),cpu_bad[k],rd(0,b+21),rd(0,b+22)); } }
+        if(rf==0){ printf("sl_x0 %d.%d sl_y0 %d.%d sl_h %d\n",rd(0,symaddr("sl_x0")+1),rd(0,symaddr("sl_x0")),rd(0,symaddr("sl_y0")+1),rd(0,symaddr("sl_y0")),rd(0,symaddr("sl_h"))); for(int k=0;k<4;k++) printf("slot%d lat %d (%d,%d) hd %d mode %d\n",k,rd(0,CT+k*32+8),rd(0,CT+k*32+1),rd(0,CT+k*32+3),rd(0,CT+k*32+4),rd(0,CT+k*32+23)); } if(rf%5==0){ for(int k=0;k<3;k++){ unsigned b=CT+(k+1)*32; printf("f%4d car%d pos(%3d,%3d) hd %2d spd %3d wp %3d lapf %4d best %5d bad %d bst %d t %d r %d %d\n",rf,k+1,rd(0,b+1),rd(0,b+3),rd(0,b+4),rd(0,b+5),rd(0,b+6),rd(0,b+12)|(rd(0,b+13)<<8),rd(0,b+14)|(rd(0,b+15)<<8),cpu_bad[k],rd(0,b+21),rd(0,b+22),rd(0,b+30),rd(0,b+31)); } }
       }
       if(getenv("CTL2")&&frames==2) wr(0,symaddr("ctl")+atoi(getenv("CTL2")),1);
       if(getenv("DUMPF")&&frames==atoi(getenv("DUMPF"))) dump("build/dumpf.ppm");
@@ -111,7 +111,7 @@ int main(int argc,char**argv){
           if(cf>=0){ int d=frames-cf; padval=0; if(d>=10&&d<=12) padval=0x04; if(getenv("CHORGT")&&d>=40&&d<=42) padval=0x01; if(getenv("CHORGT")&&d>=140&&d<=142) padval=0x02; if(d==20) dump("build/choice1.ppm"); if(d>=30&&d<=32&&!getenv("CHO1")) padval=0x04; if(d==40) dump("build/choice2.ppm"); if(d>=50&&d<=52&&!getenv("CHOWAIT")) padval=0x80; if(getenv("CHOWAIT")&&d%25==0&&d<=300){ char fn[64]; sprintf(fn,"build/scr_%03d.ppm",d); dump(fn); } if(d==60) dump("build/choice3.ppm"); if(d==70) dump("build/choice_s1.ppm"); if(d==110) dump("build/choice_s2.ppm"); if(d==120) printf("AFTER CHOICE: phase %d track_idx %d nxt %d\n",rd(0,symaddr("phase")),rd(0,symaddr("track_idx")),rd(0,symaddr("nxt_flag"))); } }
         if(ph==1 && ls!=lastls){ lastls=ls; char fn[64]; sprintf(fn,"build/rc_ls%d.ppm",ls); dump(fn); printf("rf %d lt_s %d\n",rf,ls); }
         if(mode==9 && ph==1 && ls==0){ static int g9=0, did1=0, did2=0, did3=0; g9++; unsigned CT=symaddr("cpu_t");
-          if(g9>=100&&!did1){ did1=1; for(int k=1;k<4;k++) wr(0,CT+k*30+24,6); }
+          if(g9>=100&&!did1){ did1=1; for(int k=1;k<4;k++) wr(0,CT+k*32+24,6); }
           if(g9>=140&&!did2){ did2=1; dump("build/fin_a.ppm"); }
           if(g9>=160&&!did3){ did3=1; pk(symaddr("laps_done"),6); pk(symaddr("best_tenths"),147); pk(symaddr("best_tenths")+1,0); }
           if(g9>=170 && g9%3==0){ char fn[64]; sprintf(fn,"build/fr_%03d.ppm",g9); dump(fn); } }
@@ -133,7 +133,7 @@ int main(int argc,char**argv){
           int sc=(lastq<0?-50:lastq)*3+run; sc-=abs(st)*3; if(run<8) sc-=60; if(sc>best){best=sc;bs=st;} }
         padval=(sp<100?0x10:0)|(bs<0?0x02:(bs>0?0x01:0)); }
       else if(startedrace && mode<8 && frames>=r0 && frames<r0+accel_frames) padval=(mode==2?0x04:0x10)|(((mode==1||mode==2)&&frames>r0+30)?0x02:0)|((mode==3&&frames>r0+30)?0x08:0);
-      if(getenv("TWOP")&&startedrace){ int d=frames-r0; pad2=(d>=0)?(0x10|((d/20)%2?0x02:0x01)):0; padval=(d>=0)?0x10:0; if(d>=0&&frames%10==0 && frames!=lastp2){ lastp2=frames; unsigned ct=symaddr("cpu_t"); printf("ctx %02X%02X %02X%02X ",rd(0,ct+27),rd(0,ct+26),rd(0,ct+30+27),rd(0,ct+30+26)); printf("f%d heads %d %d  speeds %d %d\n",frames,rd(0,ct+4),rd(0,ct+30+4),rd(0,ct+5),rd(0,ct+30+5)); } }
+      if(getenv("TWOP")&&startedrace){ int d=frames-r0; pad2=(d>=0)?(0x10|((d/20)%2?0x02:0x01)):0; padval=(d>=0)?0x10:0; if(d>=0&&frames%10==0 && frames!=lastp2){ lastp2=frames; unsigned ct=symaddr("cpu_t"); printf("ctx %02X%02X %02X%02X ",rd(0,ct+27),rd(0,ct+26),rd(0,ct+32+27),rd(0,ct+32+26)); printf("f%d heads %d %d  speeds %d %d\n",frames,rd(0,ct+4),rd(0,ct+32+4),rd(0,ct+5),rd(0,ct+32+5)); } }
       if(getenv("QUITT")){ int q=atoi(getenv("QUITT")); int w=atoi(getenv("QUITW")?getenv("QUITW"):"1"); int d=frames-q; if(d>=0&&d<=2) padval=0x80; else if(d>=20&&d<=22&&w>=1) padval=0x04; else if(d>=40&&d<=42&&w>=2) padval=0x80; else if(d>=0&&d<60) padval=0; }
       if(startedrace && frames==r0-1) { sx=ram[(4*8192)+(A_X+1-0x8000)]; sy=ram[(4*8192)+(A_Y+1-0x8000)]; }
       if(startedrace && frames==r0+accel_frames) { ex=ram[(4*8192)+(A_X+1-0x8000)]; ey=ram[(4*8192)+(A_Y+1-0x8000)]; es=ram[(4*8192)+(A_S-0x8000)]; ehd=ram[(4*8192)+(A_H-0x8000)]; elp=ram[(4*8192)+(A_LP-0x8000)]; }

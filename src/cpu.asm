@@ -282,6 +282,9 @@ cpu_step:
         dec (ix+21) : ld (ix+22),BOOST_FRAMES
         ld a,1 : ld (hud_dirty),a
 .nobst:
+        ld a,(ix+31) : or a : jr z,.norev
+        jp .rev                                     ; wedged against a fence: back out first
+.norev:
 ; --- steering tick: quicker when slow
         ld a,(ix+5) : ld b,7 : cp 40 : jr c,.r
         ld b,3 : cp 90 : jr c,.r
@@ -352,8 +355,11 @@ cpu_step:
         call solid_at : jr c,.hit                    ; fences stop computer cars as well: no driving through them
         ld hl,(cm_x) : ld (ix+0),l : ld (ix+1),h
         ld hl,(cm_y) : ld (ix+2),l : ld (ix+3),h
-        ret
-.hit:   ld a,(ix+3) : ld d,a : ld a,(cm_x+1) : ld e,a                      ; scrape along the fence: try the x part of the move alone,
+        ld a,(ix+30) : or a : jr z,.nh0 : dec (ix+30)
+.nh0:   ret
+.hit:   inc (ix+30) : ld a,(ix+30) : cp 24 : jr c,.hn      ; 24 net hit frames: the car is wedged, so reverse out
+        xor a : ld (ix+30),a : ld (ix+31),34
+.hn:    ld a,(ix+3) : ld d,a : ld a,(cm_x+1) : ld e,a                      ; scrape along the fence: try the x part of the move alone,
         call solid_at : jr c,.sy
         ld hl,(cm_x) : ld (ix+0),l : ld (ix+1),h : jr .sc
 .sy:    ld a,(cm_y+1) : ld d,a : ld a,(ix+1) : ld e,a                      ; then the y part alone
@@ -361,6 +367,19 @@ cpu_step:
         ld hl,(cm_y) : ld (ix+2),l : ld (ix+3),h
 .sc:    ld a,(ix+5) : srl a : srl a : srl a : sub (ix+5) : neg : ld (ix+5),a      ; scrub off an eighth of the speed
         ld (ix+22),0
+        ret
+.rev:   dec (ix+31)                                 ; reversing out: drive backwards while swinging the nose round, then resume the lane
+        xor a : ld (ix+17),a : ld (ix+22),a
+        ld a,(ix+4) : add a,NHEAD/2 : and NHEAD-1 : ld (ix+4),a
+        ld a,110 : ld (ix+5),a
+        call .mv
+        ld a,(ix+4) : add a,NHEAD/2 : ld b,a
+        ld a,(ix+16) : and 3 : jr nz,.rv2                 ; swing one step every 4th frame, direction by slot and lap
+        ld a,(cur_slot) : xor (ix+24) : and 1 : jr z,.rl
+        inc b : jr .rv2
+.rl:    dec b
+.rv2:   ld a,b : and NHEAD-1 : ld (ix+4),a
+        xor a : ld (ix+5),a
         ret
 cm_x:   dw 0
 cm_y:   dw 0
@@ -371,8 +390,8 @@ pick_target:
         ld a,(cur_slot) : ld e,a : ld d,0
         ld a,(ix+16) : add a,e : add a,e : and 7 : jr nz,.use     ; each car re-looks for its line every 8th frame (staggered)
         ld hl,la_tab : add hl,de : ld a,(hl)
-        ld c,a : ld a,(track_idx) : cp 2 : ld a,c : jr nz,.k
-        ld a,3                                      ; track 3's narrow spiral: follow the lane closely
+        ld c,a : ld a,(track_idx) : cp 2 : ld a,c : jr c,.k
+        ld a,3                                      ; tracks 3 and 4 (narrow spiral, hairpin round a wall end): follow the lane closely
 .k:     ld (la_cur),a
 .l:     ld a,(la_cur) : ld b,a : ld a,(ix+6) : call idx_plus : call wp_at
         ld a,(la_cur) : cp 4 : jr c,.fix                ; shortest look-ahead: take it

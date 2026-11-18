@@ -1365,7 +1365,7 @@ hs_exec:        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111841"
+s_ver: db "26111842"
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

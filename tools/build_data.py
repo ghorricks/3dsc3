@@ -65,6 +65,9 @@ for n in range(1,25):
         for _i,_sl in enumerate(ndi.find_objects(_l),1):
             if (_l[_sl]==_i).sum()<=220 and _sl[0].start>0 and _sl[1].start>0 and _sl[0].stop<H and _sl[1].stop<W: base[_l==_i]=True
         base=skeletonize(base)
+        if n==4:                              # track 4: clean straight isometric fences fitted to the original
+            from fence4 import fence4
+            base=fence4(H,W); ground,k,how=ground_k(base,tuple(info[str(n)]["start"]))
         if n==1:                              # wall tips: the original has plain pointed junctions, not loops
             from skimage.draw import line as _ln
             for (x0,y0,x1,y1) in ((192,88,220,112),(36,128,60,152)):

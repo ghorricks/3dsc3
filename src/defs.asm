@@ -35,7 +35,7 @@ BANK_PATHX          equ $FC00          ; lane centreline waypoints (<=250)
 BANK_PATHY          equ $FD00
 BANK_PATHH          equ $FE00          ; heading of the lane at each waypoint
 CPU_N               equ 4
-CPU_SZ              equ 30
+CPU_SZ              equ 32
 
 ; pad bits (MD mode, port $1F)
 PAD_R   equ 0
