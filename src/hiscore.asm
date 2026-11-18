@@ -101,9 +101,9 @@ name_entry:                                         ; slot in rs_slot, its row (
 .draw:  call ne_draw
 .w:     call wait_frame : call menu_in : ld b,a
         ld a,(ne_prev) : cpl : and b : ld c,a : ld a,b : ld (ne_prev),a
-        ld a,b : and $21 : jr z,.r0                  ; up/down held: repeat every half second
+        ld a,b : and $21 : jr z,.r0                  ; up/down held: repeat every quarter second
         ld a,c : and $21 : jr nz,.r0
-        ld hl,ne_rep : inc (hl) : ld a,(hl) : cp 25 : jr c,.rd
+        ld hl,ne_rep : inc (hl) : ld a,(hl) : cp 12 : jr c,.rd
         ld a,b : and $21 : or c : ld c,a
 .r0:    xor a : ld (ne_rep),a
 .rd:
@@ -310,6 +310,8 @@ s_all:      db "all",0
 nb_all:     db 0
 nb_ver:     db 0
 s_cv:       db " -u /?version",0
+s_cd:       db " -u /?download=",0
+s_cf:       db " -f ",0
 s_chk:      db "CHECKING FOR UPDATES...",0
 
 ; --- once at start: the server's version.txt ("26111830,releases/....nex,size,crc") says which build is newest
@@ -332,7 +334,12 @@ pg_vcheck:
         ret nz
         inc hl : inc de : djnz .k
         ret
-.new:   ld a,1 : ld (upd_flag),a : ret
+.new:   ld a,1 : ld (upd_flag),a
+        ld hl,upd_ver : ld de,upd_sv : ld bc,8 : ldir        ; the selected form of the menu text
+        ld hl,$C000 : ld de,upd_line : ld bc,64 : ldir       ; keep the whole line: path and size
+        ret
+upd_line:   ds 64
+            db 0
 s_c3:       db "&name=",0
 s_c4:       db "&time=",0
 
@@ -736,7 +743,7 @@ pg_logo:
         ld a,24 : ld (lg_c),a : ld a,10 : ld (lg_x),a : ld a,6 : ld (lg_y),a : call lg_draw
         ld a,4 : ld (lg_c),a : ld a,8 : ld (lg_x),a : ld a,4 : ld (lg_y),a
 lg_draw:
-        ld hl,logo : xor a : ld (lg_r),a
+        nextreg REG_MMU6,LOGO_PG : ld hl,$C000 : xor a : ld (lg_r),a
 .row:   push hl
         ld a,(lg_x) : ld e,a : ld a,(lg_y) : ld d,a : ld a,(lg_r) : add a,d : call l2_row_addr
         pop hl : ld ixl,30
@@ -751,7 +758,7 @@ lg_c:   db 0
 lg_x:   db 0
 lg_y:   db 0
 lg_r:   db 0
-logo:   INCBIN "build/logo.bin"
+LOGO_PG equ 81                                      ; the logo bitmap has a page of its own (mapped at $C000 while it is drawn)
 
 ; ---- end of a race: NEXT TRACK / MAIN MENU (A = 1 for the next track, 0 for the main menu)
 pg_choice:
@@ -847,3 +854,93 @@ s_nt:   db "NEXT TRACK",0
 s_nts:  db "> NEXT TRACK <",0
 s_mm:   db "MAIN MENU",0
 s_mms:  db "> MAIN MENU <",0
+
+; ---- UPDATE TO ########: fetch the newer .nex beside the game; it is checked (NEX header, exact size) and the machine restarts
+; The download may use memory the game is running in, so after it there is no going on: restart.
+pg_update:
+        call clear_screen
+        ld a,3 : ld (txt_fg),a
+        ld hl,s_ud1 : ld c,9 : call print_cen
+        ld hl,s_ud2 : ld c,11 : call print_cen
+        ld hl,s_ud3 : ld c,12 : call print_cen
+        ld de,ud_fn : ld hl,s_udp : call nb_put                ; 3DSC3_########.NEX
+        ld hl,upd_ver : ld bc,8 : ldir
+        ld hl,s_ude : ld bc,5 : ldir
+        ld de,nb : ld hl,s_c1 : call nb_put
+        ld hl,net_host : call nb_put
+        ld hl,s_cd : call nb_put
+        ld hl,upd_line                                          ; "build,path,size,crc"
+.a:     ld a,(hl) : inc hl : or a : jp z,ud_fail
+        cp ',' : jr nz,.a
+.p:     ld a,(hl) : or a : jp z,ud_fail
+        cp ',' : jr z,.pe
+        ld (de),a : inc hl : inc de : jr .p
+.pe:    inc hl : push hl
+        ld hl,s_cf : call nb_put
+        ld hl,ud_fn : call nb_put
+        ld a,13 : ld (de),a : inc de : xor a : ld (de),a
+        pop hl
+        ld (ud_sz),a : ld (ud_sz+1),a : ld (ud_sz+2),a          ; size in bytes, 24 bit
+.d:     ld a,(hl) : sub '0' : cp 10 : jr nc,.dd
+        ld b,a : inc hl : push hl
+        ld a,(ud_sz) : ld d,a : ld e,10 : mul d,e
+        ld a,b : add a,e : ld (ud_sz),a : ld a,d : adc a,0 : ld c,a
+        ld a,(ud_sz+1) : ld d,a : ld e,10 : mul d,e
+        ld a,c : add a,e : ld (ud_sz+1),a : ld a,d : adc a,0 : ld c,a
+        ld a,(ud_sz+2) : ld d,a : ld e,10 : mul d,e
+        ld a,c : add a,e : ld (ud_sz+2),a
+        pop hl : jr .d
+.dd:    ld a,(ud_sz) : ld b,a : ld a,(ud_sz+1) : or b : ld b,a : ld a,(ud_sz+2) : or b : jp z,ud_fail   ; no size
+        call ud_unlink
+        call net_exec : or a : jp nz,ud_fail
+        ld b,1 : ld ix,ud_fn : call sv_open2 : jp c,ud_fail
+        ld (sv_h),a
+        ld ix,ud_buf : ld bc,4 : rst 8 : db $9D : jp c,ud_bad       ; a NEX file starts with "Next"
+        ld hl,ud_buf : ld de,s_nx : ld b,4
+.h:     ld a,(de) : cp (hl) : jp nz,ud_bad
+        inc hl : inc de : djnz .h
+        ld a,(ud_sz) : sub 1 : ld e,a : ld a,(ud_sz+1) : sbc a,0 : ld d,a
+        ld a,(ud_sz+2) : sbc a,0 : ld c,a : ld b,0
+        ld a,(sv_h) : ld l,0 : ld ix,0 : rst 8 : db $9F : jp c,ud_bad    ; the last byte must be there ...
+        ld a,(sv_h) : ld ix,ud_buf : ld bc,1 : rst 8 : db $9D : jp c,ud_bad
+        dec bc : ld a,b : or c : jp nz,ud_bad
+        ld a,(sv_h) : ld ix,ud_buf : ld bc,1 : rst 8 : db $9D : jp c,ud_bad    ; ... and nothing after it
+        ld a,b : or c : jp nz,ud_bad
+        call sv_close
+        call clear_screen
+        ld a,3 : ld (txt_fg),a
+        ld hl,s_ud4 : ld c,8 : call print_cen
+        ld hl,ud_fn : ld c,10 : call print_cen
+        ld hl,s_ud5 : ld c,12 : call print_cen
+        ld a,PROMPT_C : ld (txt_fg),a
+        ld hl,s_ud6 : ld c,15 : call print_cen
+        ld bc,$00FE
+.k0:    in a,(c) : cpl : and 31 : jr nz,.k0                     ; keys up
+.k1:    in a,(c) : cpl : and 31 : jr z,.k1                      ; any key
+        nextreg $02,1                                           ; soft reset
+.hl:    jr .hl
+ud_bad: call sv_close
+ud_fail:
+        call ud_unlink
+        call clear_screen
+        ld a,PROMPT_C : ld (txt_fg),a
+        ld hl,s_ud7 : ld c,11 : call print_cen
+        ld b,120
+.w:     push bc : call wait_frame : pop bc : djnz .w
+        ret
+ud_unlink:
+        nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
+        ld a,'*' : ld ix,ud_fn : rst 8 : db $AD : ret
+s_udp:      db "3DSC3_",0
+s_ude:      db ".NEX",0
+s_nx:       db "Next"
+s_ud1:      db "DOWNLOADING THE UPDATE",0
+s_ud2:      db "THIS CAN TAKE A MINUTE",0
+s_ud3:      db "PLEASE WAIT",0
+s_ud4:      db "UPDATE DOWNLOADED",0
+s_ud5:      db "LOAD IT TO PLAY THE NEW BUILD",0
+s_ud6:      db "PRESS ANY KEY TO RESTART",0
+s_ud7:      db "UPDATE FAILED",0
+ud_fn:      ds 20
+ud_sz:      ds 3
+ud_buf:     ds 4

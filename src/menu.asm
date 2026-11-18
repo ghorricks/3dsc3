@@ -13,9 +13,7 @@ menu_run:
         ld a,3 : ld (txt_fg),a                      ; bottom centre: VERSION : build
         ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
         ld b,17 : ld c,23 : ld hl,s_ver : call print_at
-        ld a,(upd_flag) : or a : jr z,.nu0
-        ld a,PROMPT_C : ld (txt_fg),a : ld hl,upd_msg : ld c,4 : call print_cen    ; a newer build is on the server
-.nu0:
+        ld a,(upd_flag) : add a,MENU_ROWS : ld (mrows),a        ; a newer build on the server adds the UPDATE item
         call menu_draw
         call menu_in : ld (prev_in),a
 .loop:  call wait_frame
@@ -24,11 +22,11 @@ menu_run:
         ld a,b : ld (prev_in),a
         ld a,(menu_sel) : ld e,a
         bit ACC,c : jr z,.nu
-        ld a,e : add a,MENU_ROWS-1 : cp MENU_ROWS : jr c,.su
-        sub MENU_ROWS
+        ld a,(mrows) : ld b,a : dec a : add a,e : cp b : jr c,.su
+        sub b
 .su:    ld (menu_sel),a : call menu_draw : jr .loop
 .nu:    bit DWN,c : jr z,.nd
-        ld a,e : inc a : cp MENU_ROWS : jr c,.sd
+        ld a,(mrows) : ld b,a : ld a,e : inc a : cp b : jr c,.sd
         xor a
 .sd:    ld (menu_sel),a : call menu_draw : jr .loop
 .nd:    ld d,1 : bit RGT,c : jr nz,.chg
@@ -36,13 +34,15 @@ menu_run:
         bit BST,c : jr z,.loop
         ld a,e : cp 7 : jr nz,.b8
         call menu_instr : jp menu_run
-.b8:    cp 8 : jr nz,.start
+.b8:    cp 10 : jr nz,.b9
+        call hs_update : jp menu_run                ; download the newer build
+.b9:    cp 8 : jr nz,.start
         call hs_view : jp menu_run
 .chg:   call menu_change : call menu_draw : jr .loop
 .start: ld hl,ctl : ld b,4                          ; at least one human car is needed
 .h:     ld a,(hl) : cp 6 : jr c,.ok
         inc hl : djnz .h
-        jr .loop
+        jp .loop
 .ok:    jp hs_names                               ; every human player enters a name for the best laps first
 
 menu_change:                                        ; E = row, D = +1 / -1
@@ -115,16 +115,20 @@ menu_draw:                                          ; selected row: "< value >" 
 .vm:    ld hl,(md_str) : call tlen : ld d,a
 .vm2:   ld a,(md_col) : ld b,a : ld a,(md_row) : ld c,a : call mv_mark
         jr .nx
-.cen:   ld a,4 : ld (txt_fg),a                       ; INSTRUCTIONS / BEST LAPS, centred; START GAME is a prompt: cyan
+.cen:   ld a,c : cp 10 : jr nz,.c8                   ; UPDATE TO ########: cyan, "> ... <" when selected
+        ld a,PROMPT_C : ld (txt_fg),a : ld hl,upd_msg : ld a,(md_sel) : or a : jr z,.cu
+        ld hl,upd_sel
+.cu:    ld a,(md_row) : ld c,a : call print_cen : jr .nx
+.c8:    ld a,4 : ld (txt_fg),a                       ; INSTRUCTIONS / BEST LAPS, centred; START GAME is a prompt: cyan
         ld a,c : cp 9 : jr nz,.c4
         ld a,PROMPT_C : ld (txt_fg),a
 .c4:
         ld a,c : sub 7 : ld b,a : ld a,(md_sel) : ld e,a : add a,a : add a,e : add a,b : add a,a : ld e,a : ld d,0
         ld hl,cen_tab : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld a,(md_row) : ld c,a : call print_cen
-.nx:    pop bc : inc c : ld a,c : cp MENU_ROWS : jp c,.r
+.nx:    pop bc : inc c : ld a,c : ld hl,mrows : cp (hl) : jp c,.r
         ret
-row_tab: db 6,7,8,9,12,13,14,17,18,21
+row_tab: db 6,7,8,9,12,13,14,17,18,21,4
 md_row:  db 0
 md_sel:  db 0
 md_str:  dw 0
