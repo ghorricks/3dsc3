@@ -4,7 +4,7 @@
 MENU_ROWS   equ 10
 
 menu_run:
-        xor a : out ($FE),a : nextreg $4A,0 : nextreg REG_PAL_CTRL,0 : nextreg REG_PAL_IDX,16 : nextreg REG_PAL_VAL8,0 : nextreg REG_PAL_CTRL,$10     ; black border again
+        xor a : out ($FE),a : nextreg $4A,0
         call clear_screen
         ld a,3 : ld (txt_fg),a
         call hs_logo

@@ -338,7 +338,12 @@ wait_frame:                                         ; wait for raster line 192
         pop af : nextreg REG_MMU6,a
         ret
 
+border_black:                                       ; every screen that is not the track has the black border
+        xor a : out ($FE),a : nextreg $4A,a
+        nextreg REG_PAL_CTRL,0 : nextreg REG_PAL_IDX,16 : nextreg REG_PAL_VAL8,a : nextreg REG_PAL_CTRL,$10
+        ret
 clear_screen:
+        call border_black
         ld hl,vz_car : inc (hl)                          ; a new screen: the menu car changes colour
         ld a,18
 .w:     push af
@@ -1622,7 +1627,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111940",0
+s_ver: db "26111941",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
