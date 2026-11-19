@@ -16,6 +16,7 @@ start:
         nextreg REG_TURBO,3             ; 28 MHz
         call init_hw
         call input_init
+        ld bc,PORT_NEXTREG_SEL : ld a,8 : out (c),a : inc b : in a,(c) : or 2 : out (c),a   ; TurboSound on (three AY chips)
         call ay_init
         im 2 : ld a,high mus_vec : ld i,a                 ; the tune runs from the frame interrupt (only enabled outside the race)
         call hs_init
@@ -1182,7 +1183,7 @@ draw_startline:
         ld hl,hcos5 : ld (slc_p),hl : ld hl,hsin5 : ld (sls_p),hl      ; tracks 5, 6: fences at -14.8 / 75.2 degrees
         ld a,31 : ld (sl_h),a
 .std:
-        ld a,(track_idx) : sub 7 : cp 6 : jr nc,.nf          ; tracks 8, 9, 10: the lane runs along a screen axis
+        ld a,(track_idx) : sub 7 : cp 17 : jr nc,.nf         ; tracks 8 to 24: start-line heading from a table
         ld e,a : ld d,0 : ld hl,slh_t : add hl,de : ld a,(hl) : ld (sl_h),a
 .nf:
         ld a,$80 : ld (sl_x),a : ld (sl_y),a
@@ -1197,7 +1198,7 @@ draw_startline:
         ld a,(track_idx) : sub 4 : cp 3 : jr nc,.nl5
         ld a,4 : ld (sl_ax),a : ld a,-1 : ld (sl_ay),a : ld hl,290 : ld (sl_lim),hl
 .nl5:
-        ld a,(track_idx) : sub 7 : cp 6 : jr nc,.nl8
+        ld a,(track_idx) : sub 7 : cp 17 : jr nc,.nl8
         ld e,a : ld d,0 : add a,a : add a,e : ld e,a : ld hl,slax_t : add hl,de      ; 3 bytes a track: ax, ay, limit
         ld a,(hl) : ld (sl_ax),a : inc hl : ld a,(hl) : ld (sl_ay),a : inc hl : ld a,(hl) : ld l,a : ld h,0 : ld (sl_lim),hl
 .nl8:
@@ -1233,8 +1234,9 @@ sl_px:                                              ; plot sl_col at (sl_qx,sl_q
         ret
 sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3, -8,0,1,3, -9,0,1,3
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
-slh_t:  db 0,24,16,16,0,0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
+slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 0,0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
 slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
+        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1341,29 +1343,39 @@ mus_sv:     db 0
 mus_pg:     db MUS_PG
 mus_ptr:    dw MUS_WIN
 mus_i:      db 0
-            ALIGN 16
-mus_sh:     ds 16                                           ; shadow of the AY registers the tune has written
+mus_ch:     db 0                                            ; which AY chip (0-2) the interrupt is feeding
+            ALIGN 64
+mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip
 
 mus_resume:                                                 ; (re)start: put every register the tune owns back, then let the interrupt carry on where it was
         di
         im 2 : ld a,high mus_vec : ld i,a
-        ld hl,mus_sh : ld d,0 : ld b,13
+        xor a : ld (mus_ch),a : ld hl,mus_sh
+.c:     ld a,(mus_ch) : cpl : ld bc,PORT_AY_REG : out (c),a      ; $FF/$FE/$FD = AY 1/2/3
+        ld d,0 : ld b,13
 .r:     ld e,(hl) : inc hl
         ld a,d : push hl : push bc : call ay_write : pop bc : pop hl
         inc d : djnz .r
+        ld de,3 : add hl,de
+        ld a,(mus_ch) : inc a : ld (mus_ch),a : cp 3 : jr nz,.c
+        ld a,$FF : ld bc,PORT_AY_REG : out (c),a            ; the sound effects live on AY 1
         ld a,1 : ld (mus_on),a
         ei
         ret
 
-mus_off:                                                    ; race screen: interrupts off, silence the tune, the engine sound takes the chip
+mus_off:                                                    ; race screen: interrupts off, silence the tune, the engine sound takes AY 1
         di
         xor a : ld (mus_on),a
+        ld a,$FD : call mus_sil
+        ld a,$FE : call mus_sil
+        ld a,$FF : call mus_sil
+        jp ay_init
+mus_sil:ld bc,PORT_AY_REG : out (c),a
         ld e,0 : ld a,8 : call ay_write
         ld e,0 : ld a,9 : call ay_write
-        ld e,0 : ld a,10 : call ay_write
-        jp ay_init
+        ld e,0 : ld a,10 : jp ay_write
 
-mus_isr:                                                    ; one 50 Hz frame of the tune; leaves slot 2 and every register as it found them
+mus_isr:                                                    ; one 50 Hz frame of the tune (all three AY chips); leaves slot 2 and every register as it found them
         push af
         ld a,(mus_on) : or a : jr nz,.go
         pop af : ei : reti
@@ -1379,15 +1391,22 @@ mus_isr:                                                    ; one 50 Hz frame of
 .nn:    bit 6,d : jr z,.gv
         ld a,MUS_PG : ld (mus_pg),a
         ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; end of the tune: round again
-.gv:    xor a : ld (mus_i),a
+.gv:    xor a : ld (mus_ch),a
+.cl:    ld a,(mus_ch) : cpl : ld bc,PORT_AY_REG : out (c),a
+        xor a : ld (mus_i),a
 .l:     srl d : rr e : jr nc,.n
         ld a,(hl) : inc hl
         ld b,a                                              ; B = value
-        ld a,(mus_i) : ld c,a                               ; C = register
+        ld a,(mus_ch) : add a,a : add a,a : add a,a : add a,a
+        ld c,a : ld a,(mus_i) : add a,c
         push hl : ld hl,mus_sh : add a,l : ld l,a : ld (hl),b : pop hl
-        push de : ld a,c : ld e,b : call ay_write : pop de
+        push de : ld a,(mus_i) : ld e,b : call ay_write : pop de
 .n:     ld a,(mus_i) : inc a : ld (mus_i),a : cp 14 : jr nz,.l
-        ld (mus_ptr),hl
+        ld a,(mus_ch) : inc a : ld (mus_ch),a : cp 3 : jr z,.dn
+        ld e,(hl) : inc hl : ld d,(hl) : inc hl             ; next chip's mask
+        jr .cl
+.dn:    ld (mus_ptr),hl
+        ld a,$FF : ld bc,PORT_AY_REG : out (c),a            ; back to AY 1 for the effects
         pop af : nextreg REG_MMU2,a
         pop hl : pop de : pop bc : pop af
         ei : reti
@@ -1543,7 +1562,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111902",0
+s_ver: db "26111903",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

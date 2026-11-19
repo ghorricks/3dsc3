@@ -74,4 +74,30 @@ def edit13(b):
     _line(b,[(77,15),(214,15),(232,19),(246,26),(254,36)]); _line(b,[(30,42),(32,38),(34,34)])
     return dropsmall(b)
 def edit_n(b): return dropsmall(b)
-EDITS={8:edit8,9:edit9,7:edit7,10:edit_n,11:edit_n,12:edit_n,13:edit13,14:edit14}
+def _slab_clean(b,n):
+    try: T=np.load('/home/claude/stockcar/build/tex%d.npy'%n)
+    except Exception: return b
+    b[ndi.binary_dilation(T,iterations=1)&T]=False     # texture / arc lines inside a slab top are not fences
+    return b
+def _slab_poly(b,n,grow=3,clear=6,eps=2.5):
+    T=np.load('/home/claude/stockcar/build/tex%d.npy'%n)
+    lab,k=ndi.label(T)
+    for i in range(1,k+1):
+        M=ndi.binary_dilation(lab==i,iterations=grow)
+        if M.sum()<400: continue
+        b[ndi.binary_dilation(lab==i,iterations=clear)]=False
+        cs,_=cv2.findContours(M.astype(np.uint8),cv2.RETR_EXTERNAL,cv2.CHAIN_APPROX_NONE)
+        m=np.zeros(b.shape,np.uint8)
+        for c in cs: cv2.polylines(m,[cv2.approxPolyDP(c,eps,True)],True,1,1)
+        b|=m.astype(bool)
+    return b
+def edit16(b): return dropsmall(_slab_poly(b,16))
+def edit19(b): return dropsmall(_slab_poly(b,19))
+def edit15(b): return dropsmall(_slab_clean(b,15))
+def edit20(b):
+    _line(b,[(54,13),(63,15)]); _line(b,[(14,22),(20,16)])
+    return dropsmall(_slab_clean(b,20))
+def edit24(b):
+    _line(b,[(136,34),(152,34)])      # the gate sign hides a piece of the inner wall
+    return dropsmall(b)
+EDITS={8:edit8,9:edit9,7:edit7,10:edit_n,11:edit_n,12:edit_n,13:edit13,14:edit14,15:edit15,16:edit16,17:edit_n,18:edit_n,19:edit19,20:edit20,21:edit_n,22:edit_n,23:edit_n,24:edit24}

@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-EXACT={1,2,3,4,5,6,7,8,9,10,11,12,13,14}
+EXACT=set(range(1,25))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
 info=json.load(open(B+"tracks.json"))
@@ -22,8 +22,8 @@ SURFACE=["tarmac","tarmac","gravel","tarmac","dirt","tarmac","sand","tarmac",
          "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac"]   # DEFAULT GUESS - edit me
 SURFRGB={0x49:(70,70,70),0xF9:(230,200,100),0xB6:(180,180,180),0x8D:(140,90,40)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
-TWOLEG={}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
-VIA={11:[(35,110),(125,100),(225,90),(150,40),(120,22),(55,16),(8,40),(25,57),(60,65),(85,68),(104,69),(113,72),(122,79),(135,95),(205,101),(215,108),(150,108),(134,122),(160,138),(215,142),(226,158),(204,176)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
+TWOLEG={20:(177,180)}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
+VIA={16:[(38,85),(21,66),(36,44),(68,31),(105,27),(136,42),(174,37),(206,50),(231,67),(214,89),(230,110),(216,130),(187,146),(159,161),(128,175),(89,173),(59,159),(30,152),(17,138),(24,124),(42,123),(62,130),(95,136),(125,141),(150,130),(140,112),(110,103),(92,101)],23:[(150,34),(196,57),(208,100),(221,124),(233,150),(216,164),(175,167),(127,171),(60,152),(35,110),(25,72),(50,48),(80,44)],11:[(35,110),(125,100),(225,90),(150,40),(120,22),(55,16),(8,40),(25,57),(60,65),(85,68),(104,69),(113,72),(122,79),(135,95),(205,101),(215,108),(150,108),(134,122),(160,138),(215,142),(226,158),(204,176)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
 def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     """lane centreline = least-cost route start -> far end of the lap, cost grows near walls; sampled every ~6 px, smoothed"""
     from skimage.graph import route_through_array
@@ -57,7 +57,7 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     return [p[0] for p in out],[p[1] for p in out],len(out)
 
 meta=[]; PREV=[]
-PERP_N={9:24,13:26}
+PERP_N={9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
 for n in range(1,25):
     EX=n in EXACT; PERP=PERP_N.get(n,70)
     H,W=(192,256) if EX else (174,254); C.H,C.W=H,W
@@ -73,15 +73,15 @@ for n in range(1,25):
     perim=ground&~ndi.binary_erosion(ground,structure=CROSS,border_value=1)
     gap=perim&~ndi.binary_dilation(base,iterations=7)
     if gap.any(): print("track",n,"fence gap pixels filled:",int(gap.sum()))
-    if n<7 or n>14: base=base|gap
+    if n<7: base=base|gap
     base=skel_prune(base)
     if EX:                                    # exact track: close tiny end-cap loops, then re-thin to 1-px lines
         from skimage.morphology import skeletonize
         _l,_k=ndi.label(~base,structure=np.ones((3,3)))
         for _i,_sl in enumerate(ndi.find_objects(_l),1):
-            if (_l[_sl]==_i).sum()<=220 and _sl[0].start>0 and _sl[1].start>0 and _sl[0].stop<H and _sl[1].stop<W: base[_l==_i]=True
+            if (_l[_sl]==_i).sum()<=(700 if n in (21,22) else 220) and _sl[0].start>0 and _sl[1].start>0 and _sl[0].stop<H and _sl[1].stop<W: base[_l==_i]=True
         base=skeletonize(base)
-        if 7<=n<=14:
+        if 7<=n<=24:
             np.save(B+f'base{n}.npy',base)
             from fenceg import straighten,EDITS
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
@@ -187,7 +187,8 @@ for n in range(1,25):
                     if y-y0>=6 and not base[y0+2:y-2,max(x-1,0)].any() and not base[y0+2:y-2,x+1].any(): base[y0+1:y-1,x]=False
                 else: y+=1
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
-    if 7<=n<=14: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
+    if os.path.exists(B+f'tex{n}.npy'): _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
+    if 7<=n<=24: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[info[str(n)]["wall_colour"]]
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
@@ -251,7 +252,7 @@ for n in range(1,25):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
-    head={7:31,11:16,14:20}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
+    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)
@@ -295,7 +296,7 @@ for n in range(1,25):
     # ---- bank: base plane | ground plane | progress map
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=14 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=24 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
     PATHS[n]=(px,py)
     if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()

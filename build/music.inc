@@ -10,3 +10,9 @@
             MMU 6, MUS_PG+3
             ORG $C000
             INCBIN "build/music3.bin"
+            MMU 6, MUS_PG+4
+            ORG $C000
+            INCBIN "build/music4.bin"
+            MMU 6, MUS_PG+5
+            ORG $C000
+            INCBIN "build/music5.bin"
