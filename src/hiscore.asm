@@ -893,7 +893,7 @@ pg_update:
         ld hl,(ud_sz) : ld a,(ud_sz+2) : ld c,a : ld b,0         ; slices of 60928 bytes: how many?
 .np:    inc b : ld de,60928 : or a : sbc hl,de : ld a,c : sbc a,0 : ld c,a : jr c,.nd
         ld a,h : or l : or c : jr nz,.np
-.nd:    ld a,b : ld (ud_np),a : cp 10 : jp nc,ud_fail
+.nd:    ld a,b : ld (ud_np),a : cp 24 : jp nc,ud_fail
         ld a,192 : ld d,0
 .q:     cp b : jr c,.qd
         sub b : inc d : jr .q
