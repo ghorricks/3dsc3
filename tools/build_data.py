@@ -11,7 +11,10 @@ B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
 VEC={11,9,12,10}; VEC2={9,12,10}
 from vecfence import widen_zone
 # track 11: the two long diagonal stretches are narrow: grow them by 5 px into the grass (the vertical stretches stay as they are)
-WIDEN={11:widen_zone([[(100,0),(250,0),(250,94),(100,20)],[(20,115),(150,174),(150,200),(20,200)]],7,glob=2,protect=[[(100,28),(158,28),(158,66),(100,66)]])}
+def _user_lane(L):                      # track 11 is drawn by hand: tools/track11_shape.png (yellow lane on green, 4x the playfield)
+    _a=np.array(Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"track11_shape.png")).convert("RGB"))[2::4,2::4]
+    return (_a[:,:,0]>120)&(_a[:,:,2]<80)
+WIDEN={11:_user_lane}
 EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}

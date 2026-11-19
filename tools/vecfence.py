@@ -38,6 +38,29 @@ def snap(P,tol=math.radians(11),minlen=3):
             if np.hypot(*(q-np.array(P[j])))>9: q=np.array(P[j],float)     # far-off intersection: keep the traced corner
             out.append((float(q[0]),float(q[1])))
     return out
+def flatten(P,maxjog=7,tol=3.5):
+    """hand-drawn shapes: two near-horizontal edges joined by a tiny jog become ONE level line (same Y)"""
+    P=[list(p) for p in P]
+    ch=True
+    while ch and len(P)>4:
+        ch=False; n=len(P)
+        for i in range(n):
+            a,b,c,d=P[i],P[(i+1)%n],P[(i+2)%n],P[(i+3)%n]
+            e1=abs(b[1]-a[1])<=tol*0.6 and abs(b[0]-a[0])>=6
+            e3=abs(d[1]-c[1])<=tol*0.6 and abs(d[0]-c[0])>=6
+            jog=math.hypot(c[0]-b[0],c[1]-b[1])<maxjog and abs(c[1]-b[1])<=tol+1 and (b[0]-a[0])*(d[0]-c[0])>0
+            if e1 and e3 and jog:
+                y=(a[1]*abs(b[0]-a[0])+d[1]*abs(d[0]-c[0]))/(abs(b[0]-a[0])+abs(d[0]-c[0]))
+                a[1]=y; d[1]=y
+                for k in sorted([(i+1)%n,(i+2)%n],reverse=True): P.pop(k)
+                ch=True; break
+    # remaining near-level edges: make exactly level
+    n=len(P)
+    for i in range(n):
+        a,b=P[i],P[(i+1)%n]
+        if abs(b[0]-a[0])>=8 and abs(b[1]-a[1])<=2.2:
+            y=(a[1]+b[1])/2; a[1]=y; b[1]=y
+    return [tuple(p) for p in P]
 def vec_base(m,seed,eps=1.8,widen=None):
     L,it=lane(m,seed)
     if widen: L=widen(L)
@@ -47,7 +70,9 @@ def vec_base(m,seed,eps=1.8,widen=None):
         if len(c)<20: continue
         ap=cv2.approxPolyDP(c,eps,True)[:,0,:].astype(float).tolist()
         if len(ap)<3: continue
-        P=snap(ap); polys.append(P)
+        P=snap(ap)
+        if widen: P=flatten(P)
+        polys.append(P)
         img=np.zeros((H,W),np.uint8)
         pts=np.round(np.array(P)).astype(np.int32)
         cv2.polylines(img,[pts],True,1,1)
