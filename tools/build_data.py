@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-VEC={11,9,12}; VEC2={9,12}
+VEC={11,9,12,10}; VEC2={9,12,10}
 EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
