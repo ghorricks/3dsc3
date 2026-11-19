@@ -457,7 +457,7 @@ cs.save(B+"car_model.png")
 CARC=[(40,90,255),(0,210,0),(230,0,0),(255,225,0)]
 with open(B+"pal.inc","w") as f:
     f.write("; L2 palette 0..31\npal_l2:\n")
-    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x25,0xFC,0xE0,0xD7,0,0xA3,0xE7]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,12 hubcap,14 purple,15 light purple
+    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x25,0xFC,0xE0,0xD7,0,c332(34,76,217),c332(80,130,255)]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,12 hubcap,14 blue (as the blue car),15 light blue
     f.write("    db "+",".join(f"${v:02X}" for v in st)+"\n")
     for r,g,b in CARC:
         sh=[c332(min(255,r*1.0+40),min(255,g*1.0+40),min(255,b*1.0+40)),c332(r*.85,g*.85,b*.85),c332(r*.55,g*.55,b*.55),c332(r*.7,g*.7,b*.7)]
