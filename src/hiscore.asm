@@ -166,13 +166,17 @@ pg_names:
         call clear_screen
         ld a,3 : ld (txt_fg),a : ld hl,s_nm1 : ld c,2 : call print_cen
         ld hl,s_nm2 : ld c,4 : call print_cen
-        ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_nm3 : ld c,22 : call print_cen
+        ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_nm3 : ld c,23 : call print_cen
         xor a : ld (pnm_i),a : ld (pnm_k),a                  ; every human car gets a line: coloured label, name in white
 .s:     ld a,(pnm_i) : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld a,(hl) : cp 6 : jr nc,.sn
         call nm_set
         ld a,(pnm_i) : add a,a : ld e,a : ld d,0 : ld hl,col_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld a,(pnm_i) : ld e,a : ld d,0 : push hl : ld hl,hud_pos : add hl,de : add hl,de : ld a,(hl) : ld (txt_fg),a : pop hl
-        ld a,4 : ld (txt_col),a : ld a,(ne_row) : ld (txt_row),a
+        push hl : ld b,8                                     ; right-align: every 'COLOUR NAME' ends where BLUE NAME ends
+.ln:    ld a,(hl) : or a : jr z,.lz
+        inc hl : djnz .ln
+.lz:    ld a,b : ld (txt_col),a : pop hl
+        ld a,(ne_row) : ld (txt_row),a
         call print_str : ld hl,s_enter : call print_str
         call pn_addr : ld de,ne_idx : ld bc,5 : ldir
         call ne_name
@@ -192,7 +196,7 @@ pnm_i:  db 0
 pnm_k:  db 0
 s_nm1:  db "ENTER YOUR NAME",0
 s_nm2:  db "FOR BEST LAP TIMES",0
-s_nm3:  db "UP/DOWN LETTER  FIRE NEXT",0
+s_nm3:  db "UP/DOWN=CHANGE   FIRE=NEXT",0
 
 ne_name:
         ld a,3 : ld (txt_fg),a : ld a,18 : ld (txt_col),a : ld a,(ne_row) : ld (txt_row),a
