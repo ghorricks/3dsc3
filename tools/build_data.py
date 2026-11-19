@@ -8,8 +8,8 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-EXACT={1,2,3,4,5,6}
-CLOCKWISE={5,6}          # tracks the original runs clockwise round the screen
+EXACT={1,2,3,4,5,6,7,8,9,10}
+CLOCKWISE={5,6,7,8}          # tracks the original runs clockwise round the screen
 PATHS={}
 info=json.load(open(B+"tracks.json"))
 NH=32
@@ -22,7 +22,8 @@ SURFACE=["tarmac","tarmac","gravel","tarmac","dirt","tarmac","sand","tarmac",
          "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac"]   # DEFAULT GUESS - edit me
 SURFRGB={0x49:(70,70,70),0xF9:(230,200,100),0xB6:(180,180,180),0x8D:(140,90,40)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
-def make_path(dist,solid,start,H,W,maxn=250,wide=False):
+VIA={10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
+def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None):
     """lane centreline = least-cost route start -> far end of the lap, cost grows near walls; sampled every ~6 px, smoothed"""
     from skimage.graph import route_through_array
     sx,sy=start
@@ -32,7 +33,12 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False):
     if ok.sum()<free.sum()*0.2: ok=free&(clr>=1.5)
     cost=np.where(ok,1.0+(400.0 if wide else 60.0)/(clr+1.0)**2,np.where(free,2000.0,1e9))   # narrow-but-reachable pixels are expensive, never the blocked strip behind the line
     dm=np.where(ok,dist,-1); ey,ex=np.unravel_index(int(np.argmax(dm)),dm.shape)
-    route,_=route_through_array(cost,(sy,sx),(ey,ex),fully_connected=True,geometric=True)
+    if via:
+        route=[]; cur=(sy,sx)
+        for (vx,vy) in via:
+            r,_=route_through_array(cost,cur,(vy,vx),fully_connected=True,geometric=True); route+=r[1:] if route else r; cur=(vy,vx)
+    else:
+        route,_=route_through_array(cost,(sy,sx),(ey,ex),fully_connected=True,geometric=True)
     R=np.array(route,float)[:,::-1]                       # (x,y)
     seg=np.hypot(np.diff(R[:,0]),np.diff(R[:,1])*2); cum=np.concatenate([[0],np.cumsum(seg)])
     step=max(6.0,cum[-1]/maxn)
@@ -43,8 +49,9 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False):
     return [p[0] for p in out],[p[1] for p in out],len(out)
 
 meta=[]; PREV=[]
+PERP_N={9:24}
 for n in range(1,25):
-    EX=n in EXACT
+    EX=n in EXACT; PERP=PERP_N.get(n,70)
     H,W=(192,256) if EX else (174,254); C.H,C.W=H,W
     if EX:
         raw=np.frombuffer(open(B+f"track{n:02d}x.bin","rb").read(),np.uint8).reshape(192,32)
@@ -58,7 +65,7 @@ for n in range(1,25):
     perim=ground&~ndi.binary_erosion(ground,structure=CROSS,border_value=1)
     gap=perim&~ndi.binary_dilation(base,iterations=7)
     if gap.any(): print("track",n,"fence gap pixels filled:",int(gap.sum()))
-    base=base|gap
+    if n<7 or n>10: base=base|gap
     base=skel_prune(base)
     if EX:                                    # exact track: close tiny end-cap loops, then re-thin to 1-px lines
         from skimage.morphology import skeletonize
@@ -66,6 +73,10 @@ for n in range(1,25):
         for _i,_sl in enumerate(ndi.find_objects(_l),1):
             if (_l[_sl]==_i).sum()<=220 and _sl[0].start>0 and _sl[1].start>0 and _sl[0].stop<H and _sl[1].stop<W: base[_l==_i]=True
         base=skeletonize(base)
+        if n>=7:
+            np.save(B+f'base{n}.npy',base)
+            from fenceg import straighten,EDITS
+            base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
             if n==4:
                 from fence4 import fence4 as _f
@@ -168,6 +179,7 @@ for n in range(1,25):
                     if y-y0>=6 and not base[y0+2:y-2,max(x-1,0)].any() and not base[y0+2:y-2,x+1].any(): base[y0+1:y-1,x]=False
                 else: y+=1
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
+    if n>=7: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[info[str(n)]["wall_colour"]]
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
@@ -199,7 +211,7 @@ for n in range(1,25):
                 for cx in range(CW):
                     px,py=cx*CELL+2-sx,cy*CELL+2-sy
                     along=px*hx+(py*2)*(hy*2); perp=abs(-px*(hy*2)+(py*2)*hx)
-                    if -10<=along<=-2 and perp<=70: blocked[cy,cx]=True
+                    if -10<=along<=-2 and perp<=PERP: blocked[cy,cx]=True
         d=np.full((CH,CW),255,np.uint8); q=deque([c0]); d[c0[1],c0[0]]=0
         while q:
             cx,cy=q.popleft()
@@ -231,6 +243,7 @@ for n in range(1,25):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
+    head={7:31}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)
@@ -238,7 +251,7 @@ for n in range(1,25):
         yy,xx=np.mgrid[0:H,0:W]
         px=xx-sx; py=(yy-sy)*2
         along=px*hx+py*(hy*2); perp=np.abs(-px*(hy*2)+py*hx)
-        blocked=(along>=-10)&(along<=-2)&(perp<=70)
+        blocked=(along>=-10)&(along<=-2)&(perp<=PERP)
         free=~solid&~blocked
         free[sy,sx]=True
         dist=np.full((H,W),-1,np.int32); dist[sy,sx]=0; q=deque([(sx,sy)])
@@ -274,9 +287,9 @@ for n in range(1,25):
     # ---- bank: base plane | ground plane | progress map
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(n==6))
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(n>=6 and n<=10),via=VIA.get(n))
     PATHS[n]=(px,py)
-    if os.environ.get("DUMPP"): print("P",n,npts,px[:3],py[:3],px[-3:],py[-3:])
+    if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
     page[0x3C00:0x3C00+npts]=bytes(px); page[0x3D00:0x3D00+npts]=bytes(py)
     ph=[]
