@@ -172,7 +172,7 @@ pg_names:
         call nm_set
         ld a,(pnm_i) : add a,a : ld e,a : ld d,0 : ld hl,col_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld a,(pnm_i) : ld e,a : ld d,0 : push hl : ld hl,hud_pos : add hl,de : add hl,de : ld a,(hl) : ld (txt_fg),a : pop hl
-        push hl : ld b,8                                     ; right-align: every 'COLOUR NAME' ends where BLUE NAME ends
+        push hl : ld b,11                                    ; right-align: every 'COLOUR NAME' ends where BLUE NAME ends
 .ln:    ld a,(hl) : or a : jr z,.lz
         inc hl : djnz .ln
 .lz:    ld a,b : ld (txt_col),a : pop hl

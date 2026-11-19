@@ -293,7 +293,7 @@ for n in range(1,26):
     # ---- number board: pick the emptiest corner (cell coords, 4x2 cells, screen y = track y + 8)
     pan=panel_of(base)|ground
     best_b=None
-    for (bc,br) in ((1,20),(27,20),(1,2),(27,2)):
+    for (bc,br) in (((0,r) for r in range(8,15)) if n==10 else ((1,20),(27,20),(1,2),(27,2))):      # track 10: middle left, on the grass
         x0,y0=bc*8,br*8
         sub=pan[max(y0-3,0):min(y0+16+8,H),max(x0-3,0):min(x0+32+3,W)]
         sc=int(sub.sum())

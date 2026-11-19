@@ -87,7 +87,7 @@ session:
         call cpu_sound
 .held:  call check_end
         ld a,(race_over) : or a : jp z,.frame
-.over:  call mus_resume
+.over:  xor a : ld (vj_on),a : call mus_resume
         call show_results
         ld a,(phase) : or a : jr z,.pr
         ld a,(nxt_flag) : or a : jp z,menu          ; race over: MAIN MENU ...
@@ -129,7 +129,7 @@ check_end:                                          ; race: a car that has run a
         jr nc,.n
 .fin:   ld a,(fin_n) : inc a : ld (fin_n),a : ld (ix+29),a
         cp 1 : jr nz,.nj : ld a,(ix+23) : cp 1 : jr nz,.nj           ; a human takes first place as they cross the line: victory jingle on AY 2
-        ld a,JING_PG : ld (mus_pg),a : ld hl,MUS_WIN : ld (mus_ptr),hl : ld a,1 : ld (mus_on),a
+        ld a,JING_PG : ld (mus_pg),a : ld hl,MUS_WIN : ld (mus_ptr),hl : ld a,1 : ld (mus_on),a : ld (vj_on),a
 .nj:
         call cpu_swap : call restore_car : call cpu_swap
         ld (ix+23),0
@@ -328,7 +328,7 @@ wait_frame:                                         ; wait for raster line 192
         cp 192 : jr z,.w2
         ld a,(mus_on) : or a : ret z
         ld bc,PORT_NEXTREG_SEL : ld a,REG_MMU6 : out (c),a : inc b : in a,(c) : push af      ; the channel bars and the menu car live in page 81
-        nextreg REG_MMU6,LOGO_PG : call mus_viz : call pg_car
+        nextreg REG_MMU6,LOGO_PG : call mus_viz
         pop af : nextreg REG_MMU6,a
         ret
 
@@ -872,9 +872,11 @@ update_lap:
 .cross: call hum_chain                              ; keep the ordered-gate counter up to date
         call line_cross : ret nc
         ld a,(npts) : ld b,a : srl b : srl b : sub b : ld c,a    ; C = 3/4 of the gates
-        ld a,(gate) : ld b,a : xor a : ld (gate),a  ; the gates of the next lap start at the line
-        ld a,b : cp c : jp c,lap_reset              ; not driven through in order (or the start of the race): the line only restarts the timing
+        ld a,(gate) : cp c : jr c,.early
+        xor a : ld (gate),a                         ; all the gates driven through in order, then the line: a lap
         jp lap_complete
+.early: ld b,a : ld a,(npts) : srl a : srl a : srl a : ld c,a : ld a,b : cp c : ret nc    ; gate 1/8 or more: the track merely passes over the line mid-lap - nothing happens
+        xor a : ld (gate),a : jp lap_reset          ; the start of the race: the line only restarts the timing
 
 hum_chain:                                          ; GATE = the furthest lane waypoint reached in order (0 at the line, never wraps); any lane position counts, a waypoint is "reached" within GATE_R of it
         ld b,3
@@ -887,7 +889,7 @@ hum_chain:                                          ; GATE = the furthest lane w
         ld a,(gate) : dec a : call hdist : cp GATE_R : jr nc,.dn   ; the gate behind is near: driving backwards
         ld hl,gate : dec (hl) : pop bc : djnz .s : ret
 .dn:    pop bc : ret
-GATE_R      equ 44
+GATE_R      equ 80
 hdist:                                              ; A = waypoint -> A = |dx| + 2|dy| from the car (saturating)
         call wp_at
         ld a,(car_x+1) : sub b : jr nc,.x : neg
@@ -1401,6 +1403,7 @@ mus_sil:ld bc,PORT_AY_REG : out (c),a
         ld e,0 : ld a,10 : jp ay_write
 
 dbg_viz:    db 0
+vj_on:      db 0                                            ; the first-place jingle is stepped from wait_frame while the race runs (interrupts off)
 vz_car:     db 0                                            ; which colour the menu car shows (counts screen changes)
 mus_isr:                                                    ; one 50 Hz frame of the tune (all three AY chips); leaves slot 2 and every register as it found them
         push af
@@ -1417,10 +1420,9 @@ mus_isr:                                                    ; one 50 Hz frame of
         ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; this frame continues on the next page
 .nn:    bit 6,d : jr z,.gv
         ld a,(mus_pg) : cp JING_PG : jr c,.lp
-        xor a : ld (mus_on),a                               ; the victory jingle is over: silence AY 2, the tune starts again from its top
+        xor a : ld (mus_on),a : ld (vj_on),a                ; the victory jingle is over: silence AY 2, the tune starts again from its top
         ld a,MUS_PG : ld (mus_pg),a : ld hl,MUS_WIN : ld (mus_ptr),hl
-        ld a,$FE : ld bc,PORT_AY_REG : out (c),a
-        ld e,0 : ld a,8 : call ay_write : ld e,0 : ld a,9 : call ay_write : ld e,0 : ld a,10 : call ay_write
+        ld a,$FE : call mus_sil
         jr .dn
 .lp:    ld a,MUS_PG : ld (mus_pg),a
         ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; end of the tune: round again
@@ -1595,7 +1597,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111914",0
+s_ver: db "26111915",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1637,7 +1639,7 @@ snd_skid:   db 0
 race_over:  db 0
 menu_sel:   db 0
 track_idx:  db 0
-trk_max:    db 5                                    ; tracks on offer: the finished ones (1 to 5); typing DEBUG on the instructions page unlocks all 24
+trk_max:    db 9                                    ; tracks on offer: the finished ones (1 to 9); typing DEBUG on the instructions page unlocks all 25
 prev_in:    db 0
 laps_i:     db 3
 txt_col:    db 0
@@ -1682,14 +1684,6 @@ wp_at:                                              ; A = waypoint -> B = x, C =
         ld hl,BANK_PATHX : add hl,de : ld b,(hl)
         ld hl,BANK_PATHY : add hl,de : ld c,(hl)
         ret
-stack_area:
-car_buf:    ds 160                                  ; fills the gap before the page-aligned colour table
-            ds 40                                   ; stack room (SP starts at dc_lut and grows down through here, so keep it clear of car_buf)
-            ALIGN 256
-            ASSERT dc_lut-car_buf-160 >= 40, "stack would run into car_buf"
-dc_lut:     ds 16                                   ; colour LUT: indexed as (high dc_lut):pattern value, so page aligned
-            ASSERT (dc_lut & 255) == 0
-            INCLUDE "src/cpu.asm"
 ; ---- lap time flash: after a timed lap the car's LAPS counter shows the lap time for 3 seconds
 lap_flash:                                          ; HL = lap time in tenths, for car cur_slot (keeps DE)
         push de : push hl
@@ -1704,6 +1698,14 @@ lap_tick:                                           ; once per frame; redraw the
         ld a,1 : ld (hud_dirty),a
 .n:     inc hl : djnz .l
         ret
+stack_area:
+car_buf:    ds 160                                  ; fills the gap before the page-aligned colour table
+            ds 40                                   ; stack room (SP starts at dc_lut and grows down through here, so keep it clear of car_buf)
+            ALIGN 256
+            ASSERT dc_lut-car_buf-160 >= 40, "stack would run into car_buf"
+dc_lut:     ds 16                                   ; colour LUT: indexed as (high dc_lut):pattern value, so page aligned
+            ASSERT (dc_lut & 255) == 0
+            INCLUDE "src/cpu.asm"
 code_end:
             ASSERT code_end <= $BA00                    ; the main code must stay below the IM2 vector table
             ORG $BA00

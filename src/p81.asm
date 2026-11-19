@@ -95,6 +95,7 @@ vz_off:     db 8,9,10, 24,25,26, 40,41,42                   ; the channel's volu
 vz_x:       db 2,7,12, 19,24,29, 36,41,46
 vz_c:       db 16,16,16, 20,20,20, 24,24,24
 mus_viz:
+        ld a,(vj_on) : or a : jp nz,vj_step                 ; racing: only the jingle
         xor a : ld (vz_i),a
 .l:     ld a,(vz_i) : ld e,a : ld d,0
         ld hl,vz_off : add hl,de : ld a,(hl) : ld hl,mus_sh : add a,l : ld l,a
@@ -109,7 +110,9 @@ mus_viz:
 .bl:    ld hl,vz_x : add hl,de : ld a,(hl) : ld (fr_x),a
         ld a,VZ_Y+16 : ld (fr_y),a : ld a,1 : ld (fr_h),a : ld a,5 : ld (fr_c),a : ld a,4 : ld (fr_w),a : call fill_rect
         ld a,(vz_i) : inc a : ld (vz_i),a : cp 9 : jp nz,.l
-        ret
+        jp pg_car
+vj_step:ld hl,vj_back : push hl : jp mus_isr                ; run one 50 Hz frame of the tune code by hand: its 'ei : reti' returns here
+vj_back:di : ret
 
 
 ; the big stock car (menu screens, bottom right): picture from build/bigcar.bin = w,h then one byte per pixel (0 clear, 1-4 body shades, 5-8 fixed)

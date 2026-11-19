@@ -370,10 +370,19 @@ cpu_step:
         ld hl,(cm_x) : ld (ix+0),l : ld (ix+1),h
         ld hl,(cm_y) : ld (ix+2),l : ld (ix+3),h
         ld a,(ix+30) : or a : jr z,.nh0 : dec (ix+30)
-.nh0:   ret
+.nh0:   ld a,(ix+16) : and 63 : ret nz                  ; free for a while: forget the earlier wedges
+        ld (ix+33),a
+        ret
 .hit:   call snd_impact
         inc (ix+30) : ld a,(ix+30) : cp 24 : jr c,.hn      ; 24 net hit frames: the car is wedged, so reverse out
-        xor a : ld (ix+30),a : ld (ix+31),34
+        xor a : ld (ix+30),a
+        ld a,(ix+33) : inc a : and 3 : ld (ix+33),a          ; wedged again and again?
+        cp 3 : jr nz,.rv0
+        ld a,(ix+6) : sub 4 : jr nc,.t1                       ; third time running: something else - back on the lane centre, a few waypoints behind
+        ld hl,npts : add a,(hl)
+.t1:    call wp_at : xor a : ld (ix+0),a : ld (ix+2),a : ld (ix+1),b : ld (ix+3),c : ld (ix+5),a : ld (ix+33),a
+        ret
+.rv0:   ld (ix+31),34
 .hn:    ld a,(ix+3) : ld d,a : ld a,(cm_x+1) : ld e,a                      ; scrape along the fence: try the x part of the move alone,
         call solid_at : jr c,.sy
         ld hl,(cm_x) : ld (ix+0),l : ld (ix+1),h : jr .sc
