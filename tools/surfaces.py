@@ -53,7 +53,7 @@ def block(name,inf):
     ent+=[(33+i,)+p9(S["fol"][i]) for i in range(3)]
     ent+=[(36+i,)+p9(TYRE[i]) for i in range(3)]
     ent+=[(44+i,)+p9(S["spk"][i]) for i in range(3)]
-    b[1]=len(ent)
+    b[1]=len(ent); b[0x27]=c332(S["ground"])      # $FF27: the border colour (the surround, 8-bit)
     for i,e in enumerate(ent): b[2+3*i:5+3*i]=bytes(e)
     for k,v in enumerate(inf):
         if v: b[0x28+(k>>3)]|=1<<(k&7)

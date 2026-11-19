@@ -38,7 +38,7 @@ menu:
 session:
         call hs_pre                     ; online best laps, fetched once per round before the track is drawn
         call mus_off                    ; the race screen has the engines, not the tune
-        ld a,4 : out ($FE),a : nextreg $4A,$14      ; green border
+        xor a : out ($FE),a                         ; border: set from the surface once the palette is loaded
         call get_meta
         call map_track
         call load_palette
@@ -409,6 +409,10 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
         ld a,(hl) : inc hl : nextreg $44,a
         ld a,(hl) : inc hl : nextreg $44,a
         djnz .sp
+        ld a,(SURF_BLK+$27)                             ; the border takes the colour of the surround: ULA paper 0 (border colour 0) and the fallback colour
+        nextreg REG_PAL_CTRL,0 : nextreg REG_PAL_IDX,16 : nextreg REG_PAL_VAL8,a : nextreg REG_PAL_CTRL,$10
+        nextreg $4A,a
+        xor a : out ($FE),a
         ret
 
 map_track:                                          ; 16K bank 16+idx -> $C000-$FFFF
@@ -1618,7 +1622,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111938",0
+s_ver: db "26111939",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
