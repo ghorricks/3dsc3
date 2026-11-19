@@ -21,9 +21,9 @@ menu_run:
         call menu_in : ld b,a
         ld a,(prev_in) : cpl : and b : ld c,a       ; C = newly pressed
         ld a,b : ld (prev_in),a
-        ld a,b : and (1<<LFT)|(1<<RGT) : jr z,.r0         ; left/right held: repeat like the name entry letters (every 12 frames)
+        ld a,b : and (1<<LFT)|(1<<RGT) : jr z,.r0         ; left/right held: repeat like the name entry letters (every 24 frames)
         ld a,c : and (1<<LFT)|(1<<RGT) : jr nz,.r0
-        ld hl,mn_rep : inc (hl) : ld a,(hl) : cp 12 : jr c,.rd
+        ld hl,mn_rep : inc (hl) : ld a,(hl) : cp 24 : jr c,.rd
         ld a,b : and (1<<LFT)|(1<<RGT) : or c : ld c,a
 .r0:    xor a : ld (mn_rep),a
 .rd:    ld a,(menu_sel) : ld e,a : ld (md_old),a
