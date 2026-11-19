@@ -16,3 +16,6 @@
             MMU 6, MUS_PG+5
             ORG $C000
             INCBIN "build/music5.bin"
+            MMU 6, 92
+            ORG $C000
+            INCBIN "build/jingle.bin"

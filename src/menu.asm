@@ -261,7 +261,7 @@ show_results:
         ld hl,9999
 .tt:    call print_tenths
 .nt:    pop bc : inc c : dec b : jp nz,.l
-.done:  ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_pfc : ld c,22 : call print_cen    ; results stay up until the player decides to go on
+.done:  ld a,PROMPT_C : ld (txt_fg),a : ld hl,s_pfc : ld c,23 : call print_cen    ; results stay up until the player decides to go on
 .d0:    call wait_frame : call menu_in : bit BST,a : jr nz,.d0
 .d1:    call wait_frame : call menu_in : bit BST,a : jr z,.d1
 .d2:    call wait_frame : call menu_in : bit BST,a : jr nz,.d2

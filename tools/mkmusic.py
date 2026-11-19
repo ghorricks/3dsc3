@@ -49,3 +49,14 @@ for n,p in enumerate(pages):
     inc.append(f"            MMU 6, MUS_PG+{n}\n            ORG $C000\n            INCBIN \"build/music{n}.bin\"")
 open(B+"music.inc","w").write("\n".join(inc)+"\n")
 print(len(ch[0]),"frames",[len(p) for p in pages])
+
+# ---- victory jingle: 3 channels from victory.psg, played on AY chip 2 (the other chips' records are empty); one page, ends with the "loop" flag
+vf=load(R+"music9/victory.psg")
+jb=bytearray()
+for f in vf:
+    jb+=bytes([0,0])+rec(f)+bytes([0,0])
+jb+=bytes([0,0x40])
+assert len(jb)<8190
+open(B+"jingle.bin","wb").write(bytes(jb))
+open(B+"music.inc","a").write('            MMU 6, 92\n            ORG $C000\n            INCBIN "build/jingle.bin"\n')
+print("jingle",len(vf),"frames",len(jb),"bytes")

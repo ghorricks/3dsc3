@@ -65,3 +65,72 @@ if __name__=="__main__":
     R=Image.fromarray(im).resize((256*S,192*S),Image.NEAREST)
     Wd=Image.new('RGB',(256*S*2,192*S)); Wd.paste(med,(0,0)); Wd.paste(R,(256*S,0))
     Wd.save('/tmp/claude-0/-home-claude/75bc9376-5fde-5ee5-97ba-f2e8c55057d5/scratchpad/vec%d.png'%n)
+
+# ---- version 2: free-standing thin walls (the original draws them as a band) become ONE centre line instead of a double outline
+from skimage.morphology import skeletonize, disk
+def _longest_path(sk):
+    ys,xs=np.nonzero(sk); pts=set(zip(xs.tolist(),ys.tolist()))
+    if len(pts)<2: return []
+    def bfs(s):
+        prev={s:None}; q=[s]; last=s
+        for p in q:
+            last=p
+            for dx in(-1,0,1):
+                for dy in(-1,0,1):
+                    n=(p[0]+dx,p[1]+dy)
+                    if n in pts and n not in prev: prev[n]=p; q.append(n)
+        return last,prev
+    a,_=bfs(next(iter(pts))); b,prev=bfs(a)
+    path=[]; p=b
+    while p is not None: path.append(p); p=prev[p]
+    return path
+def _level(P):                                  # snap near-horizontal / near-vertical segments exactly
+    P=[list(map(float,p)) for p in P]
+    for i in range(len(P)-1):
+        a,b=P[i],P[i+1]; dx,dy=b[0]-a[0],b[1]-a[1]
+        if abs(dy)<=2 and abs(dx)>=6: y=round((a[1]+b[1])/2); a[1]=b[1]=y
+        elif abs(dx)<=2 and abs(dy)>=6: x=round((a[0]+b[0])/2); a[0]=b[0]=x
+    return P
+def vec_base2(m,seed,r=5,eps=1.8):
+    L,it=lane(m,seed)
+    Nn=~L
+    pp=r+2; fat=ndi.binary_opening(np.pad(Nn,pp,constant_values=True),structure=disk(r))[pp:-pp,pp:-pp]
+    thin=Nn&~fat
+    lane2=~fat
+    if m[:,W-4:].any(axis=1).sum()>=10: lane2[:,W-1]=False          # the original draws a wall right on the screen edge
+    if m[:,:4].any(axis=1).sum()>=10: lane2[:,0]=False
+    if m[H-4:,:].any(axis=0).sum()>=10: lane2[H-1,:]=False
+    base,_,polys,_=vec_base_from(lane2)
+    lab,k=ndi.label(thin,structure=np.ones((3,3)))
+    for i in range(1,k+1):
+        comp=lab==i
+        if comp.sum()<25: continue
+        if comp[0,:].any() or comp[-1,:].any() or comp[:,0].any() or comp[:,-1].any(): continue
+        sk=skeletonize(comp); first=True
+        for _ in range(12):                                   # branch after branch: longest path, remove it, repeat
+            if sk.sum()<6: break
+            path=_longest_path(sk)
+            if len(path)<(8 if first else 6): break
+            first=False
+            P=np.array(path,np.int32)
+            ap=cv2.approxPolyDP(P.reshape(-1,1,2),eps,False)[:,0,:].tolist()
+            ap=_level(ap)
+            for end in (0,-1):                                # attach a branch end to what is already drawn (gap <= 5 px)
+                ex,ey=int(round(ap[end][0])),int(round(ap[end][1])); yy,xx=np.nonzero(base[max(ey-5,0):ey+6,max(ex-5,0):ex+6])
+                if len(yy):
+                    q=np.argmin((xx-(ex-max(ex-5,0)))**2+(yy-(ey-max(ey-5,0)))**2); ap[end]=[xx[q]+max(ex-5,0),yy[q]+max(ey-5,0)]
+            img=np.zeros((H,W),np.uint8); cv2.polylines(img,[np.round(np.array(ap)).astype(np.int32)],False,1,1); base|=img>0
+            rm=np.zeros((H,W),np.uint8); rm[P[:,1],P[:,0]]=1
+            sk=sk&~ndi.binary_dilation(rm>0,iterations=2)
+            sk=sk&ndi.binary_dilation(sk,structure=np.ones((3,3)))
+    return base,lane2,polys,it
+def vec_base_from(Lm,eps=1.8):
+    base=np.zeros((H,W),bool); polys=[]
+    cs,_=cv2.findContours(Lm.astype(np.uint8),cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
+    for c in cs:
+        if len(c)<20: continue
+        ap=cv2.approxPolyDP(c,eps,True)[:,0,:].astype(float).tolist()
+        if len(ap)<3: continue
+        P=snap(ap); polys.append(P)
+        img=np.zeros((H,W),np.uint8); cv2.polylines(img,[np.round(np.array(P)).astype(np.int32)],True,1,1); base|=img>0
+    return base,Lm,polys,0

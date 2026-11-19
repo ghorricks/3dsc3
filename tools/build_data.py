@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-VEC={11}
+VEC={11,9,12}; VEC2={9,12}
 EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
@@ -87,8 +87,8 @@ for n in range(1,26):
             from fenceg import straighten,EDITS
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n in VEC:                          # vectorised from the faithful wall mask (tools/vecfence.py)
-            from vecfence import vec_base
-            base=vec_base(np.load(B+f'keep{n}.npy') if False else m,tuple(info[str(n)]['start']))[0]; ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
+            from vecfence import vec_base,vec_base2
+            base=(vec_base2 if n in VEC2 else vec_base)(m,tuple(info[str(n)]['start']))[0]; ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n==25:                             # designed here (tools/track25.py): the fence is already exact
             base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
         if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
@@ -365,16 +365,21 @@ def car_patterns():
                     c0,c1,c2,c3=[np.array(p,float) for p in pts]
                     def q(t,zz): return tuple(lerp(lerp(c0,c1,t),lerp(c3,c2,t),zz))
                     face([q(.14,.2),q(.86,.2),q(.86,.8),q(.14,.8)],5)           # windows
-                if kind=="body" and name=="front":
+                if kind=="nose" and name=="front":
                     for s_ in(-1,1): face([(u1+.01,s_*w*.7-.55,1.5),(u1+.01,s_*w*.7+.55,1.5),(u1+.01,s_*w*.7+.55,2.5),(u1+.01,s_*w*.7-.55,2.5)],7)   # headlights
-                if kind=="body" and name=="back":
+                if kind=="tail" and name=="back":
                     for s_ in(-1,1): face([(u0-.01,s_*w*.7-.55,1.5),(u0-.01,s_*w*.7+.55,1.5),(u0-.01,s_*w*.7+.55,2.5),(u0-.01,s_*w*.7-.55,2.5)],8)   # tail lights
             face([(u0,-w,z1),(u1,-w,z1),(u1,w,z1),(u0,w,z1)],1)               # roof / bonnet top
-        for u in(-3.7,3.7):                                                     # tyres (slim dark panels at the four corners)
+        for u in(-3.7,3.7):                                                     # far-side tyres (behind the body)
             for v in(-2.9,2.9):
-                dr.polygon([P(u-1.2,v,0),P(u+1.2,v,0),P(u+1.2,v,1.9),P(u-1.2,v,1.9)],fill=6)
-        draw_box((-6,6,2.6,0.8,3.2),"body")
-        draw_box((-3.8,1.8,2.0,3.2,5.4),"cabin")
+                if (v>0)!=(ca>0): dr.polygon([P(u-1.2,v,0),P(u+1.2,v,0),P(u+1.2,v,1.9),P(u-1.2,v,1.9)],fill=6)
+        draw_box((-4.6,4.6,2.6,0.8,3.2),"plain")
+        draw_box((4.6,6.0,2.2,0.8,2.5),"nose")                                  # sloping bonnet
+        draw_box((-6.0,-4.6,2.2,0.8,2.8),"tail")                                # lower boot
+        draw_box((-3.4,1.4,1.9,3.2,5.2),"cabin")
+        for u in(-3.7,3.7):                                                     # near-side tyres on top of the body: wheels show in the arches
+            v=2.62 if ca>0 else -2.62
+            dr.polygon([P(u-1.35,v,0),P(u+1.35,v,0),P(u+1.35,v,2.5),P(u-1.35,v,2.5)],fill=6)
         arr=np.array(im); px=np.zeros((16,16),np.uint8)
         if h==14:                                                               # the big car for the menu screens: same model, 3x the resolution, heading left and slightly down
             f=2; nn=16*S//f; bg=np.zeros((nn,nn),np.uint8)
@@ -414,7 +419,7 @@ cs.save(B+"car_model.png")
 CARC=[(40,90,255),(0,210,0),(230,0,0),(255,225,0)]
 with open(B+"pal.inc","w") as f:
     f.write("; L2 palette 0..31\npal_l2:\n")
-    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x24,0xFC,0xE0,0,0,0xA3,0xE7]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,14 purple,15 light purple
+    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x6D,0xFC,0xE0,0,0,0xA3,0xE7]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,14 purple,15 light purple
     f.write("    db "+",".join(f"${v:02X}" for v in st)+"\n")
     for r,g,b in CARC:
         sh=[c332(min(255,r*1.0+40),min(255,g*1.0+40),min(255,b*1.0+40)),c332(r*.85,g*.85,b*.85),c332(r*.55,g*.55,b*.55),c332(r*.7,g*.7,b*.7)]

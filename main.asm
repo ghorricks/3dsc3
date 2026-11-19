@@ -128,6 +128,9 @@ check_end:                                          ; race: a car that has run a
         ld a,(laps_total) : cp (ix+24) : jr z,.fin
         jr nc,.n
 .fin:   ld a,(fin_n) : inc a : ld (fin_n),a : ld (ix+29),a
+        cp 1 : jr nz,.nj : ld a,(ix+23) : cp 1 : jr nz,.nj           ; a human takes first place as they cross the line: victory jingle on AY 2
+        ld a,JING_PG : ld (mus_pg),a : ld hl,MUS_WIN : ld (mus_ptr),hl : ld a,1 : ld (mus_on),a
+.nj:
         call cpu_swap : call restore_car : call cpu_swap
         ld (ix+23),0
         ld a,1 : ld (hud_dirty),a
@@ -1360,6 +1363,7 @@ snd_lead: dw 0
 
 ; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG; runs from the 50 Hz interrupt)
 MUS_PG      equ 84
+JING_PG     equ 92                                          ; the first-place jingle (page 92: track 25 owns 90-91)
 MUS_WIN     equ $4000                                       ; the tune's page is borrowed into slot 2 for a moment each frame
 mus_on:     db 0
 mus_sv:     db 0
@@ -1412,7 +1416,13 @@ mus_isr:                                                    ; one 50 Hz frame of
         ld a,(mus_pg) : inc a : ld (mus_pg),a
         ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; this frame continues on the next page
 .nn:    bit 6,d : jr z,.gv
-        ld a,MUS_PG : ld (mus_pg),a
+        ld a,(mus_pg) : cp JING_PG : jr c,.lp
+        xor a : ld (mus_on),a                               ; the victory jingle is over: silence AY 2, the tune starts again from its top
+        ld a,MUS_PG : ld (mus_pg),a : ld hl,MUS_WIN : ld (mus_ptr),hl
+        ld a,$FE : ld bc,PORT_AY_REG : out (c),a
+        ld e,0 : ld a,8 : call ay_write : ld e,0 : ld a,9 : call ay_write : ld e,0 : ld a,10 : call ay_write
+        jr .dn
+.lp:    ld a,MUS_PG : ld (mus_pg),a
         ld hl,MUS_WIN : ld (mus_ptr),hl : jr .rd            ; end of the tune: round again
 .gv:    xor a : ld (mus_ch),a
 .cl:    ld a,(mus_ch) : cpl : ld bc,PORT_AY_REG : out (c),a
@@ -1570,7 +1580,7 @@ hs_update:      call mus_off                                     ; the tune stay
 hs_check_all:   call hs_on : call pg_check : push af : call hs_off : pop af : ret
 nb:             ds 160                                           ; dot command line: must stay visible while the OS runs
 hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_on),a : pop af      ; the tune waits while the OS runs the dot command
-                push hl : ld e,0 : ld a,8 : call ay_write : ld e,0 : ld a,10 : call ay_write : ld e,0 : ld a,9 : call ay_write : pop hl
+                push hl : ld a,$FD : call mus_sil : ld a,$FE : call mus_sil : ld a,$FF : call mus_sil : pop hl      ; all nine tune channels and the effects go quiet
                 nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; M_EXECCMD (HL = command line): the OS memory layout back first,
                 nextreg REG_MMU2,10 : nextreg REG_MMU3,11        ; kept in main memory so nothing paged out takes this code with it
                 nextreg REG_MMU6,0 : nextreg REG_MMU7,1
@@ -1585,7 +1595,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111910",0
+s_ver: db "26111911",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
