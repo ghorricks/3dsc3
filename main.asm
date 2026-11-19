@@ -391,7 +391,7 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
         nextreg REG_PAL_IDX,12
         ld a,e : nextreg $44,a : nextreg $44,0
         nextreg REG_PAL_IDX,44                      ; dirt speckle shades: dark, light, mid-dark
-        nextreg REG_PAL_VAL8,$44 : nextreg REG_PAL_VAL8,$AD : nextreg REG_PAL_VAL8,$64
+        nextreg REG_PAL_VAL8,$64 : nextreg REG_PAL_VAL8,$AD : nextreg REG_PAL_VAL8,$68
         nextreg REG_PAL_IDX,5
         ld a,b : nextreg REG_PAL_VAL8,a
         ld a,c : nextreg REG_PAL_VAL8,a
@@ -1605,7 +1605,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111931",0
+s_ver: db "26111932",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
