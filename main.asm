@@ -1357,7 +1357,7 @@ cpu_sound:
 .d0:    srl d : rr e : add hl,de : jr .dn            ; first: about 6% flatter
 .d1:    srl d : rr e : srl d : rr e : or a : sbc hl,de   ; second: about 3% sharper
 .dn:    push hl : ld e,l : ld a,4 : call ay_write : pop hl : ld e,h : ld a,5 : call ay_write
-        ld a,(ix+5) : rrca : rrca : rrca : rrca : and 15 : srl a : srl a : inc a : ld e,a
+        ld a,(ix+5) : rrca : rrca : rrca : rrca : and 15 : srl a : srl a : add a,2 : ld e,a
         ld a,10 : jp ay_write
 .mute:  ld e,0 : ld a,10 : jp ay_write
 cs_k:   db 0
@@ -1515,7 +1515,7 @@ sound_update0:                                      ; lead human car: engine not
         ld a,8 : ld e,0 : call ay_write : jr .scr    ; no human car: channel A silent
 .got:   ld (snd_lead),ix
         ld a,(ix+5) : ld e,0 : or a : jr z,.vol
-        rrca : rrca : rrca : rrca : and 15 : srl a : srl a : inc a : ld e,a     ; quieter than before (was level/2 + 5)
+        rrca : rrca : rrca : rrca : and 15 : srl a : srl a : add a,2 : ld e,a     ; quieter than before (was level/2 + 5)
 .vol:   ld a,8 : call ay_write
         ld a,(ix+5) : rrca : rrca : rrca : rrca : and 15
         ld l,a : ld h,0
@@ -1597,7 +1597,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111917",0
+s_ver: db "26111918",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
