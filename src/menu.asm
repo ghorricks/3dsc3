@@ -21,7 +21,12 @@ menu_run:
         call menu_in : ld b,a
         ld a,(prev_in) : cpl : and b : ld c,a       ; C = newly pressed
         ld a,b : ld (prev_in),a
-        ld a,(menu_sel) : ld e,a : ld (md_old),a
+        ld a,b : and (1<<LFT)|(1<<RGT) : jr z,.r0         ; left/right held: repeat like the name entry letters (every 12 frames)
+        ld a,c : and (1<<LFT)|(1<<RGT) : jr nz,.r0
+        ld hl,mn_rep : inc (hl) : ld a,(hl) : cp 12 : jr c,.rd
+        ld a,b : and (1<<LFT)|(1<<RGT) : or c : ld c,a
+.r0:    xor a : ld (mn_rep),a
+.rd:    ld a,(menu_sel) : ld e,a : ld (md_old),a
         bit ACC,c : jr z,.nu
         ld a,(mrows) : ld b,a : dec a : add a,e : cp b : jr c,.su
         sub b
@@ -49,6 +54,7 @@ menu_run:
         jp .loop
 .ok:    jp hs_names                               ; every human player enters a name for the best laps first
 
+mn_rep:     db 0
 menu_ukey:                                          ; U: check the server for a newer build (does not return: the menu is drawn again)
         ld a,(idle_go) : or a : jr z,.nid                   ; 20 s without a key: the title picture for 10 s, then the menu again
         call title_show : xor a : ld (idle_go),a : pop af : jp menu_run
