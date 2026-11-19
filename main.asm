@@ -414,9 +414,10 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
         ld a,(hl) : inc hl : nextreg $44,a
         ld a,(hl) : inc hl : nextreg $44,a
         djnz .sp
-        ld a,(SURF_BLK+$27)                             ; the border takes the colour of the surround: ULA paper 0 (border colour 0) and the fallback colour
-        nextreg REG_PAL_CTRL,0 : nextreg REG_PAL_IDX,16 : nextreg REG_PAL_VAL8,a : nextreg REG_PAL_CTRL,$10
-        nextreg $4A,a
+        nextreg REG_PAL_CTRL,0 : nextreg REG_PAL_IDX,16                 ; the border (ULA paper 0) gets exactly the 9-bit colour of the surround (palette entry 32 of the surface block)
+        ld a,(SURF_BLK+9) : nextreg $44,a : ld a,(SURF_BLK+10) : nextreg $44,a
+        nextreg REG_PAL_CTRL,$10
+        ld a,(SURF_BLK+9) : nextreg $4A,a                               ; the fallback colour (8-bit only) is the nearest
         xor a : out ($FE),a
         ret
 
@@ -1627,7 +1628,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111941",0
+s_ver: db "26111942",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
