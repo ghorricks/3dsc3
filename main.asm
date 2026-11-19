@@ -1582,7 +1582,7 @@ upd_sv:         ds 8
                 db " <",0
 mrows:          db 10                                             ; menu rows: 10, or 11 with the update item
 hs_vcheck:      call mus_off                                     ; U on the main menu: ask the server for the newest build again
-                call hs_on : call pg_vcheck : call hs_off
+                ld a,1 : ld (ck_cen),a : call hs_on : call pg_vcheck : call hs_off : xor a : ld (ck_cen),a
                 jp mus_resume
 hs_update:      call mus_off                                     ; the tune stays off for the whole download (each slice used to stop and restart it)
                 call hs_on : call pg_update : call hs_off
@@ -1605,7 +1605,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111933",0
+s_ver: db "26111934",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1728,9 +1728,13 @@ ud_sz:      ds 3
 ud_buf:     ds 4
 idle_go:    db 0                                        ; set by the page-81 timer: 20 s idle in the main menu
 fr_ld:      ld de,fr_x : ld bc,5 : ldir : jp fill_rect       ; HL -> fr_x fr_y fr_w fr_h fr_c, then fill
-ck_msg:     ld hl,ck_t : call fr_ld                          ; black panel, bottom right, with CHECKING FOR UPDATES...
+ck_cen:     db 0                                        ; 1 = U pressed in the menu: centred panel covering the version line
+ck_msg:     ld a,(ck_cen) : or a : jr z,.br
+            ld hl,ck_t2 : call fr_ld : ld a,255 : ld (txt_fg),a : ld c,23 : ld hl,s_chk : jp print_cen
+.br:        ld hl,ck_t : call fr_ld                          ; black panel, bottom right, with CHECKING FOR UPDATES...
             ld a,255 : ld (txt_fg),a : ld bc,$0917 : ld hl,s_chk : jp print_at
 ck_t:       db 72,182,184,10,0
+ck_t2:      db 24,182,208,10,0
             ALIGN 64
 mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip (aligned so a slot never carries)
 font:       INCBIN "build/font.bin"                     ; after the IM2 table and its jump (the code had grown into $BA00 and the font sat on the vectors)
