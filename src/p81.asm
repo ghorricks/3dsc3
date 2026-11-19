@@ -118,7 +118,7 @@ vj_back:di : ret
 ; the big stock car (menu screens, bottom right): picture from build/bigcar.bin = w,h then one byte per pixel (0 clear, 1-4 body shades, 5-8 fixed)
 VC_X        equ 210
 VC_Y        equ 149
-vc_lut:     ds 9
+vc_lut:     ds 10
 vc_w:       db 0
 vc_h:       db 0
 vc_y:       db 0
@@ -126,6 +126,7 @@ pg_car:     ld a,(vz_car) : and 3 : add a,a : add a,a : add a,15 : ld c,a       
             ld hl,vc_lut : xor a : ld (hl),a : inc hl
             ld a,c : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl
             ld a,8 : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a
+            inc hl : ld a,12 : ld (hl),a                                  ; 9 = hubcap
             exx : ld hl,vc_lut : exx
             ld hl,bigcar : ld a,(hl) : ld (vc_w),a : inc hl : ld a,(hl) : ld (vc_h),a : inc hl
             ld a,VC_Y : ld (vc_y),a

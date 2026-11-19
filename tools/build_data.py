@@ -9,6 +9,9 @@ from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
 VEC={11,9,12,10}; VEC2={9,12,10}
+from vecfence import widen_zone
+# track 11: the two long diagonal stretches are narrow: grow them by 5 px into the grass (the vertical stretches stay as they are)
+WIDEN={11:widen_zone([[(100,0),(250,0),(250,94),(100,20)],[(20,115),(150,174),(150,200),(20,200)]],7,glob=2,protect=[[(100,28),(158,28),(158,66),(100,66)]])}
 EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
@@ -88,7 +91,7 @@ for n in range(1,26):
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n in VEC:                          # vectorised from the faithful wall mask (tools/vecfence.py)
             from vecfence import vec_base,vec_base2
-            base=(vec_base2 if n in VEC2 else vec_base)(m,tuple(info[str(n)]['start']))[0]; ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
+            base=(vec_base2(m,tuple(info[str(n)]['start']))[0] if n in VEC2 else vec_base(m,tuple(info[str(n)]['start']),widen=WIDEN.get(n))[0]); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n==25:                             # designed here (tools/track25.py): the fence is already exact
             base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
         if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
@@ -364,7 +367,7 @@ def car_patterns():
                 if kind=="cabin":
                     c0,c1,c2,c3=[np.array(p,float) for p in pts]
                     def q(t,zz): return tuple(lerp(lerp(c0,c1,t),lerp(c3,c2,t),zz))
-                    face([q(.14,.2),q(.86,.2),q(.86,.8),q(.14,.8)],5)           # windows
+                    face([q(.1,.15),q(.9,.15),q(.9,.85),q(.1,.85)],5)           # windows
                 if kind=="nose" and name=="front":
                     for s_ in(-1,1): face([(u1+.01,s_*w*.7-.55,1.5),(u1+.01,s_*w*.7+.55,1.5),(u1+.01,s_*w*.7+.55,2.5),(u1+.01,s_*w*.7-.55,2.5)],7)   # headlights
                 if kind=="tail" and name=="back":
@@ -411,7 +414,8 @@ if os.path.exists(_rc):                                   # the menu car is draw
     for _y in range(_h):
         for _x in range(_w):
             r,g,b=_im.getpixel((_x,_y)); v=0
-            if r>200 and g>200 and b<120: v=7
+            if r>150 and b>200 and g>150: v=9                     # hubcaps
+            elif r>200 and g>200 and b<120: v=7
             elif abs(r-g)<8 and abs(g-b)<8 and 25<g<60: v=6
             elif b>g and b>=90 and r<80: v=5
             elif g>=200: v=1
@@ -435,7 +439,7 @@ cs.save(B+"car_model.png")
 CARC=[(40,90,255),(0,210,0),(230,0,0),(255,225,0)]
 with open(B+"pal.inc","w") as f:
     f.write("; L2 palette 0..31\npal_l2:\n")
-    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x25,0xFC,0xE0,0,0,0xA3,0xE7]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,14 purple,15 light purple
+    st=[0x00,0x49,0x49,0xFF,0xFC,0x92,0xDB,0xB6,0x05,0x25,0xFC,0xE0,0xD7,0,0xA3,0xE7]   # 0 black,1 lo,2 road,3 white,4 yellow,5 mid,6 hi,7 post,8 window,9 tyre,10 head,11 tail,12 hubcap,14 purple,15 light purple
     f.write("    db "+",".join(f"${v:02X}" for v in st)+"\n")
     for r,g,b in CARC:
         sh=[c332(min(255,r*1.0+40),min(255,g*1.0+40),min(255,b*1.0+40)),c332(r*.85,g*.85,b*.85),c332(r*.55,g*.55,b*.55),c332(r*.7,g*.7,b*.7)]

@@ -38,8 +38,9 @@ def snap(P,tol=math.radians(11),minlen=3):
             if np.hypot(*(q-np.array(P[j])))>9: q=np.array(P[j],float)     # far-off intersection: keep the traced corner
             out.append((float(q[0]),float(q[1])))
     return out
-def vec_base(m,seed,eps=1.8):
+def vec_base(m,seed,eps=1.8,widen=None):
     L,it=lane(m,seed)
+    if widen: L=widen(L)
     base=np.zeros((H,W),bool); polys=[]
     cs,_=cv2.findContours(L.astype(np.uint8),cv2.RETR_CCOMP,cv2.CHAIN_APPROX_NONE)
     for c in cs:
@@ -134,3 +135,19 @@ def vec_base_from(Lm,eps=1.8):
         P=snap(ap); polys.append(P)
         img=np.zeros((H,W),np.uint8); cv2.polylines(img,[np.round(np.array(P)).astype(np.int32)],True,1,1); base|=img>0
     return base,Lm,polys,0
+
+def widen_zone(polys,r,glob=0,protect=()):
+    """grow the lane by r px, but only inside the given polygons (diagonal stretches): the extra width is taken from the grass"""
+    def f(L):
+        Z=np.zeros((H,W),np.uint8)
+        for P in polys: cv2.fillPoly(Z,[np.array(P,np.int32)],1)
+        g=ndi.binary_dilation(L,structure=disk(r))
+        W2=L|(g&(Z>0))
+        if glob:
+            P=np.zeros((H,W),np.uint8)
+            for Q in protect: cv2.fillPoly(P,[np.array(Q,np.int32)],1)
+            W2=W2|(ndi.binary_dilation(L,structure=disk(glob))&(P==0))
+        W2=ndi.binary_closing(np.pad(W2,8),structure=disk(4))[8:-8,8:-8]
+        W2=ndi.binary_opening(np.pad(W2,8),structure=disk(3))[8:-8,8:-8]
+        return W2|L
+    return f
