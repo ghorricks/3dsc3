@@ -17,7 +17,7 @@ menu and track screens (`s_ver` in main.asm - update it with every delivered bui
 
 ## Menu, cars and grid (build 26111707)
 - Main menu: CAR 1-4 each get a controller (KEMPSTON 1, KEMPSTON 2, INT2 L, INT2 R, CURSOR, KEYS QAOPSP, COMPUTER, UNWANTED), then DIFFICULTY (EASY/MEDIUM/EXPERT), TRACK, LAPS (PRACTICE/3/5/10), START, INSTRUCTIONS. Q/A or joystick up/down move, O/P or left/right change, fire (Space/Enter/pad button) selects.
-- Computer cars exist on track 1 only for now (lane paths are baked for track 1). They are stopped by fences (they slide along them), swing out to overtake and each has a slightly different pace.
+- Computer cars race on all 24 tracks (a baked lane path per track, built by tools/build_data.py; hand way-points for the figure-8 / serpentine tracks). They are stopped by fences (they slide along them), reverse out when wedged, swing out to overtake and each has a slightly different pace.
 - Starting grid: staggered two-by-two behind the line (3 directly behind 1, 4 directly behind 2), centred on the road, each slot marked with a white "[" with its closed line at the front and the sides running back.
 - Race ends when a car completes the chosen laps (winner shown); practice ends when the 3:00 countdown reaches zero.
 
@@ -36,3 +36,13 @@ Best laps are written to `3DSC3.SAV` (1920 bytes, raw table) through esxDOS (`rs
 `src/hiscore.asm` now lives in RAM page 80 (mapped at `$E000`; stubs in main.asm). Entries carry a synced flag (byte 7). After names are entered the table is saved to `3DSC3.SAV`, then every unsynced record is sent with
 `.http get -h <host> -u /?track=N&name=XXXXX&time=SS.T` (via esxDOS M_EXECCMD, run from main memory). At start-up any unsynced records are sent the same way (stops at the first failure).
 The Best Laps screen has LOCAL / ONLINE views (up/down); ONLINE does a single `.http ... -u /?track=all` into bank 41 (page 82) and parses the `T,NAME,SS.T` lines into a cache (counts at `$D000`, 10 x 8 bytes per track at `$D100`); switching track or LOCAL/ONLINE afterwards uses the cache, and it is refetched after new records are sent. `.http` has no HTTPS: `net_host` must be reachable over plain HTTP.
+
+
+## Music
+The menu tune is 'Hard Habit' (tools/hard_habit.py, AY engine in tools/ay_engine.py): 90 s, the last 4 s fade out, then it loops with no fade-in. tools/mkmusic.py packs tools/Hard_Habit.psg into the music pages.
+
+## Fence geometry rules (all tracks, 12 onwards use them in tools/vecfence.py with CLEAN=True)
+The playfield is an isometric view, so a fence only ever runs in one of four directions: **level** (same Y along its whole length),
+**2:1 diagonal** either way, or the 3D "vertical" direction, which is a **shear**: 1 pixel across for every 4 down (leaning left going down),
+exactly like the far-right fence of the originals. Never plumb vertical. Free wall ends keep the wall's own direction (no hooks); two level
+pieces that meet end to end share one Y. When designing a new track, draw only these directions.

@@ -94,6 +94,7 @@ for n in range(1,26):
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n in VEC:                          # vectorised from the faithful wall mask (tools/vecfence.py)
             from vecfence import vec_base,vec_base2
+            import vecfence as _vf; _vf.CLEAN=(n>=12)
             base=(vec_base2(m,tuple(info[str(n)]['start']))[0] if n in VEC2 else vec_base(m,tuple(info[str(n)]['start']),widen=WIDEN.get(n))[0]); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n==25:                             # designed here (tools/track25.py): the fence is already exact
             base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
@@ -299,7 +300,7 @@ for n in range(1,26):
     # ---- number board: pick the emptiest corner (cell coords, 4x2 cells, screen y = track y + 8)
     pan=panel_of(base)|ground
     best_b=None
-    for (bc,br) in (((0,r) for r in range(8,15)) if n==10 else ((1,20),(27,20),(1,2),(27,2))):      # track 10: middle left, on the grass
+    for (bc,br) in (((0,r) for r in range(8,15)) if n==10 else (((1,20),(27,20),(1,2),(27,2))+tuple((c,r) for c in range(25,29) for r in range(19,22)) if n==12 else ((1,20),(27,20),(1,2),(27,2)))):      # track 10: middle left, on the grass
         x0,y0=bc*8,br*8
         sub=pan[max(y0-3,0):min(y0+16+8,H),max(x0-3,0):min(x0+32+3,W)]
         sc=int(sub.sum())
