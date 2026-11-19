@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-VEC={11,9,12,10}; VEC2={9,12,10}
+VEC={11,9,12,10,13}; VEC2={9,12,10,13}
 from vecfence import widen_zone
 # track 11: the two long diagonal stretches are narrow: grow them by 5 px into the grass (the vertical stretches stay as they are)
 def _user_lane(L):                      # track 11 is drawn by hand: tools/track11_shape.png (yellow lane on green, 4x the playfield)

@@ -1311,7 +1311,7 @@ sl_py: db 0
 ; basic trees on the grass: pseudo-random spots (fixed per track), only where a whole 6x9 patch is plain grass
 draw_trees:
         ld a,(track_idx) : add a,a : add a,a : add a,11 : ld (tr_x),a : add a,a : inc a : ld (tr_y),a
-        ld a,110 : ld (tr_n),a
+        ld a,220 : ld (tr_n),a                     ; twice as many tries as before = twice the trees
 .t:     ld a,(tr_x) : ld b,a : add a,a : add a,a : add a,b : add a,17 : ld (tr_x),a          ; x = x*5+17
         ld a,(tr_y) : ld b,a : add a,a : add a,a : add a,a : add a,b : add a,3 : ld (tr_y),a  ; y = y*9+3
         ld a,(tr_x) : cp 4 : jr c,.nx : cp 250 : jr nc,.nx
@@ -1597,7 +1597,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111925",0
+s_ver: db "26111926",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
