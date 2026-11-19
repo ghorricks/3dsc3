@@ -39,10 +39,15 @@ pn_tab      equ HS_NAMES
 pn_def:     db 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36     ; just an "A" until a player types a name
 
 hs_ptr:                                             ; -> HL = first entry of the current track
-        ld a,(track_idx) : ld d,a : ld e,80 : mul d,e : ld hl,HS_ENT : add hl,de
+        ld a,(track_idx) : cp 24 : jr c,.n
+        ld hl,hs_dummy : ret                            ; track 25 keeps no records: an empty table that nothing writes
+.n:     ld d,a : ld e,80 : mul d,e : ld hl,HS_ENT : add hl,de
         ret
 
 hs_rank:                                            ; DE = tenths -> A = place 0..9, or 10 when it does not make the table
+        ld a,(track_idx) : cp 24 : jr c,.hk
+        ld a,10 : ret
+.hk:
         push de : call hs_ptr : push hl : pop ix : pop de
         xor a : ld (hr_i),a
 .l:     ld c,(ix+5) : ld b,(ix+6) : ld h,d : ld l,e : or a : sbc hl,bc : jr c,.f

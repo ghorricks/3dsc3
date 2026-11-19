@@ -8,7 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-EXACT=set(range(1,25))
+EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
 info=json.load(open(B+"tracks.json"))
@@ -19,7 +19,7 @@ ZXRGB=[(0,0,0),(0,0,255),(255,0,0),(255,0,255),(0,255,0),(0,255,255),(255,255,0)
 SURF={"tarmac":0x49,"sand":0xF9,"gravel":0xB6,"dirt":0x8D}
 SURFACE=["tarmac","tarmac","gravel","tarmac","dirt","tarmac","sand","tarmac",
          "gravel","tarmac","sand","dirt","tarmac","gravel","tarmac","dirt",
-         "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac"]   # DEFAULT GUESS - edit me
+         "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac","tarmac"]   # DEFAULT GUESS - edit me
 SURFRGB={0x49:(70,70,70),0xF9:(230,200,100),0xB6:(180,180,180),0x8D:(140,90,40)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
 TWOLEG={20:(177,180)}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
@@ -57,8 +57,8 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     return [p[0] for p in out],[p[1] for p in out],len(out)
 
 meta=[]; PREV=[]
-PERP_N={9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
-for n in range(1,25):
+PERP_N={25:26,9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
+for n in range(1,26):
     EX=n in EXACT; PERP=PERP_N.get(n,70)
     H,W=(192,256) if EX else (174,254); C.H,C.W=H,W
     if EX:
@@ -85,6 +85,8 @@ for n in range(1,25):
             np.save(B+f'base{n}.npy',base)
             from fenceg import straighten,EDITS
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
+        if n==25:                             # designed here (tools/track25.py): the fence is already exact
+            base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
         if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
             if n==4:
                 from fence4 import fence4 as _f
@@ -188,7 +190,7 @@ for n in range(1,25):
                 else: y+=1
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
     if os.path.exists(B+f'tex{n}.npy'): _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
-    if 7<=n<=24: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
+    if 7<=n<=25: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[info[str(n)]["wall_colour"]]
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
@@ -252,7 +254,7 @@ for n in range(1,25):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
-    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
+    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:12}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)
@@ -296,7 +298,7 @@ for n in range(1,25):
     # ---- bank: base plane | ground plane | progress map
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=24 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=25 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
     PATHS[n]=(px,py)
     if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
@@ -318,7 +320,7 @@ sheet=Image.new("RGB",(260*6+28,194*4+20),(40,40,40))
 for i,pv in enumerate(PREV): sheet.paste(Image.fromarray(pv),(4+(i%6)*260,4+(i//6)*194))
 sheet.save(B+"preview_filled.png")
 with open("/home/claude/stockcar/src/trackdata.asm","w") as f:
-    for n in range(24): f.write(f'    MMU 6 7, {32+2*n}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
+    for n in range(25): f.write(f'    MMU 6 7, {32+2*n if n<24 else 90}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
 SPEEDK=12.5/14   # top speed scaled so track 1 lap is ~14 s (original), was 12.5 s
 # ---- speed table: NH headings x 16 levels -> (dx,dy) signed 8.8
 with open(B+"speed.inc","w") as f:
