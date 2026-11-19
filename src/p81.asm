@@ -81,7 +81,7 @@ dbg_scan:
         inc a                                           ; a fresh D starts the word again
 .rs:    ld (dbg_i),a : ret
 .ok:    ld (dbg_i),a : cp 5 : ret nz
-        ld a,25 : ld (trk_max),a
+        ld a,25 : ld (trk_max),a : ld (dbg_viz),a
         ld a,20 : ld (txt_fg),a
         ld hl,s_dbg : ld c,21 : jp print_cen
 s_dbg:  db "DEBUG: ALL 25 TRACKS UNLOCKED",0

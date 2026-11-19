@@ -323,7 +323,9 @@ wait_frame:                                         ; wait for raster line 192
         cp 192 : jr nz,.w1
 .w2:    ld a,$1F : out (c),a : inc b : in a,(c) : dec b
         cp 192 : jr z,.w2
-        ret
+        ld a,(dbg_viz) : or a : ret z
+        ld a,(mus_on) : or a : ret z
+        jp mus_viz                                      ; DEBUG: show the nine tune channels
 
 clear_screen:
         ld a,18
@@ -1390,6 +1392,32 @@ mus_sil:ld bc,PORT_AY_REG : out (c),a
         ld e,0 : ld a,9 : call ay_write
         ld e,0 : ld a,10 : jp ay_write
 
+; DEBUG only (typed on the instructions page): nine level bars, one per tune channel, bottom left of the menu screens.
+; blue = AY 1 (A B C), green = AY 2, red = AY 3; a bar is as tall as the channel's volume (0-15)
+VZ_Y        equ 150
+dbg_viz:    db 0
+vz_i:       db 0
+vz_v:       db 0
+vz_off:     db 8,9,10, 24,25,26, 40,41,42                   ; the channel's volume register in mus_sh
+vz_x:       db 2,7,12, 19,24,29, 36,41,46
+vz_c:       db 16,16,16, 20,20,20, 24,24,24
+mus_viz:
+        xor a : ld (vz_i),a
+.l:     ld a,(vz_i) : ld e,a : ld d,0
+        ld hl,vz_off : add hl,de : ld a,(hl) : ld hl,mus_sh : add a,l : ld l,a
+        ld a,(hl) : and 15 : ld (vz_v),a
+        ld hl,vz_x : add hl,de : ld a,(hl) : ld (fr_x),a
+        ld a,VZ_Y : ld (fr_y),a : ld a,4 : ld (fr_w),a : ld a,16 : ld (fr_h),a : xor a : ld (fr_c),a : call fill_rect
+        ld a,(vz_i) : ld e,a : ld d,0
+        ld a,(vz_v) : or a : jr z,.bl
+        ld b,a : ld a,VZ_Y+16 : sub b : ld (fr_y),a : ld a,b : ld (fr_h),a
+        ld hl,vz_c : add hl,de : ld a,(hl) : ld (fr_c),a : ld a,4 : ld (fr_w),a : call fill_rect
+        ld a,(vz_i) : ld e,a : ld d,0
+.bl:    ld hl,vz_x : add hl,de : ld a,(hl) : ld (fr_x),a
+        ld a,VZ_Y+16 : ld (fr_y),a : ld a,1 : ld (fr_h),a : ld a,5 : ld (fr_c),a : ld a,4 : ld (fr_w),a : call fill_rect
+        ld a,(vz_i) : inc a : ld (vz_i),a : cp 9 : jp nz,.l
+        ret
+
 mus_isr:                                                    ; one 50 Hz frame of the tune (all three AY chips); leaves slot 2 and every register as it found them
         push af
         ld a,(mus_on) : or a : jr nz,.go
@@ -1577,7 +1605,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111908",0
+s_ver: db "26111909",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
