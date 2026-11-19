@@ -1,6 +1,6 @@
 // Smoke-test harness: runs stockcar.nex in a minimal Z80N/Next model (memory paging, L2, ports, NEXTREG).
 #include "z80.h"
-int vzh=0;
+int tth=0,vzh=0;
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
@@ -62,6 +62,8 @@ int main(int argc,char**argv){
     else if(getenv("UPDT") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("hs_update"); }
     else if(getenv("UPDT") && (pc==symaddr("pg_update.k1")||pc==symaddr("ud_fail")+0*1) && !upd_hit++ ){ printf("UPDATE reached %04X frames %d\n",pc,frames); if(pc==symaddr("pg_update.k1")) frames=4+accel_frames+40; }
     else if(getenv("MUSLOG") && pc==symaddr("menu_run.loop") && frames>=atoi(getenv("MUSLOG"))){ frames=4+accel_frames+40; }
+    else if(getenv("TITLESHOT") && pc==symaddr("net_try") && !ms_done && (ms_done=1)){ dump(getenv("TITLESHOT")); }
+    else if(getenv("TTLSHOT") && pc==symaddr("pg_title.h") && ++tth==30){ dump(getenv("TTLSHOT")); }
     else if(getenv("MENUSHOT") && pc==symaddr("menu_run.loop") && ++vzh>=(getenv("VZF")?atoi(getenv("VZF")):0) && !ms_done && (ms_done=1)){ dump(getenv("MENUSHOT")); frames=4+accel_frames+40; }
     else if(getenv("INSTR") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("menu_instr"); }
     else if(getenv("DBGT") && pc==symaddr("pg_instr.w2") && frames>=220 && !ms_done && (ms_done=1)){ printf("trk_max=%d\n",rd(0,symaddr("trk_max"))); dump("build/instr.ppm"); frames=4+accel_frames+40; }

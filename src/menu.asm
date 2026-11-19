@@ -8,11 +8,7 @@ menu_run:
         call clear_screen
         ld a,3 : ld (txt_fg),a
         call hs_logo
-        ld a,3 : ld (txt_fg),a
-        ld b,7 : ld c,3 : ld hl,s_by : call print_at
-        ld a,3 : ld (txt_fg),a                      ; bottom centre: VERSION : build
-        ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
-        ld b,17 : ld c,23 : ld hl,s_ver : call print_at
+        nextreg REG_MMU6,LOGO_PG : call pg_mhead : call map_track     ; heading lines, version, palette back from the title picture, idle timer armed (page 81)
         ld a,(upd_flag) : add a,MENU_ROWS : ld (mrows),a        ; a newer build on the server adds the UPDATE item
         call menu_draw
         ld a,(mu_msg) : or a : jr z,.nm                 ; back from a U key update check
@@ -54,7 +50,9 @@ menu_run:
 .ok:    jp hs_names                               ; every human player enters a name for the best laps first
 
 menu_ukey:                                          ; U: check the server for a newer build (does not return: the menu is drawn again)
-        ld bc,$DFFE : in a,(c) : bit 3,a : ret nz
+        ld a,(idle_go) : or a : jr z,.nid                   ; 20 s without a key: the title picture for 10 s, then the menu again
+        call title_show : xor a : ld (idle_go),a : pop af : jp menu_run
+.nid:   ld bc,$DFFE : in a,(c) : bit 3,a : ret nz
         pop af
         call hs_vcheck
 .ur:    call wait_frame : ld bc,$DFFE : in a,(c) : bit 3,a : jr z,.ur     ; let go of U first

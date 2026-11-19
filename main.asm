@@ -19,6 +19,7 @@ start:
         ld bc,PORT_NEXTREG_SEL : ld a,8 : out (c),a : inc b : in a,(c) : or 2 : out (c),a   ; TurboSound on (three AY chips)
         call ay_init
         im 2 : ld a,high mus_vec : ld i,a                 ; the tune runs from the frame interrupt (only enabled outside the race)
+        xor a : call title_show                         ; the title picture stays up while the saved records load and the server is asked about a newer build
         call hs_init
         xor a
         ld (track_idx),a
@@ -1365,6 +1366,7 @@ snd_lead: dw 0
 
 ; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG; runs from the 50 Hz interrupt)
 MUS_PG      equ 84
+TITLE_PG    equ 24                                          ; the title picture: pages 24-29 (free 8K pages below the 2 MB banks)
 JING_PG     equ 92                                          ; the first-place jingle (page 92: track 25 owns 90-91)
 MUS_WIN     equ $4000                                       ; the tune's page is borrowed into slot 2 for a moment each frame
 mus_on:     db 0
@@ -1555,6 +1557,7 @@ hs_best:        call hs_on : call pg_best : jp hs_off
 hs_names:       call hs_on : call pg_names : jp hs_off
 hs_choice:      call hs_on : call pg_choice : ld (nxt_flag),a : jp hs_off      ; map_track in hs_off clobbers A, so the answer goes to nxt_flag first
 hs_logo:        call hs_on : call pg_logo : jp hs_off
+title_show:     nextreg REG_MMU6,LOGO_PG : call pg_title : jp map_track   ; A = 0: show it and go on, A = 1: hold it for 10 s (page 81)
 hs_quitq:       call hs_on : call pg_quit : ld (qt_res),a : jp hs_off
 qt_res:         db 0
 hs_ready:       call hs_on : call pg_ready : jp hs_off
@@ -1597,7 +1600,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111927",0
+s_ver: db "26111928",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1718,6 +1721,11 @@ upd_line:   ds 64                                       ; scratch for the high-s
 ud_fn:      ds 20
 ud_sz:      ds 3
 ud_buf:     ds 4
+idle_go:    db 0                                        ; set by the page-81 timer: 20 s idle in the main menu
+fr_ld:      ld de,fr_x : ld bc,5 : ldir : jp fill_rect       ; HL -> fr_x fr_y fr_w fr_h fr_c, then fill
+ck_msg:     ld hl,ck_t : call fr_ld                          ; black panel, bottom right, with CHECKING FOR UPDATES...
+            ld a,255 : ld (txt_fg),a : ld bc,$0917 : ld hl,s_chk : jp print_at
+ck_t:       db 72,182,184,10,0
             ALIGN 64
 mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip (aligned so a slot never carries)
 font:       INCBIN "build/font.bin"                     ; after the IM2 table and its jump (the code had grown into $BA00 and the font sat on the vectors)
@@ -1738,6 +1746,25 @@ car_pat:    INCBIN "build/cars.bin"
             INCLUDE "src/p81.asm"                   ; 32 headings x 80 bytes (the page holding the logo has room: main code was running past $BFFF)
 
             INCLUDE "build/music.inc"
+            MMU 7, TITLE_PG+0
+            ORG $E000
+            INCBIN "build/title.bin",0,8192
+            MMU 7, TITLE_PG+1
+            ORG $E000
+            INCBIN "build/title.bin",8192,8192
+            MMU 7, TITLE_PG+2
+            ORG $E000
+            INCBIN "build/title.bin",16384,8192
+            MMU 7, TITLE_PG+3
+            ORG $E000
+            INCBIN "build/title.bin",24576,8192
+            MMU 7, TITLE_PG+4
+            ORG $E000
+            INCBIN "build/title.bin",32768,8192
+            MMU 7, TITLE_PG+5
+            ORG $E000
+            INCBIN "build/title.bin",40960,8192
+
 
             SAVENEX OPEN "stockcar.nex", start, dc_lut
             SAVENEX CORE 3,1,5

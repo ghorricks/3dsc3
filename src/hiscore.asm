@@ -343,13 +343,11 @@ s_chk:      db "CHECKING FOR UPDATES...",0
 ; --- once at start: the server's version.txt ("26111830,releases/....nex,size,crc") says which build is newest
 pg_vcheck:
         xor a : ld (upd_flag),a
-        ld a,3 : ld (txt_fg),a : ld hl,s_chk : ld c,12 : call print_cen
+        call ck_msg                                        ; CHECKING FOR UPDATES... on a black panel, bottom right (the title picture or the menu stays untouched elsewhere)
         ld a,1 : ld (nb_ver),a
         call net_clear : call nb_base : call nb_end
         call net_try                                       ; one attempt only: nobody should wait long for this
-        ld b,a : xor a : ld (nb_ver),a : ld (fr_x),a : ld (fr_c),a
-        ld a,96 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,8 : ld (fr_h),a
-        push bc : call fill_rect : pop bc                  ; wipe the message
+        ld b,a : xor a : ld (nb_ver),a
         ld a,b : or a : ret nz
         nextreg REG_MMU6,NET_PG
         ld hl,$C000 : ld de,upd_ver : ld b,8

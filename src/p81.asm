@@ -95,6 +95,8 @@ vz_off:     db 8,9,10, 24,25,26, 40,41,42                   ; the channel's volu
 vz_x:       db 2,7,12, 19,24,29, 36,41,46
 vz_c:       db 16,16,16, 20,20,20, 24,24,24
 mus_viz:
+        ld a,(ttl_on) : or a : ret nz                       ; the title picture is up: no bars, no car
+        call idle_tick
         ld a,(vj_on) : or a : jp nz,vj_step                 ; racing: only the jingle
         xor a : ld (vz_i),a
 .l:     ld a,(vz_i) : ld e,a : ld d,0
@@ -139,3 +141,54 @@ pg_car:     ld a,(vz_car) : and 3 : add a,a : add a,a : add a,15 : ld c,a       
             ld a,(vc_h) : dec a : ld (vc_h),a : jr nz,.row
             ret
 bigcar:     INCBIN "build/bigcar.bin"
+
+; ---- title picture (6 pages of 8 KB, 32 rows each, default RGB332 palette) and the idle timer of the main menu
+ttl_on:     db 0
+idle_en:    db 0
+idle_vz:    db 0
+idle_cnt:   dw 0
+ty:         db 0
+tk:         db 0
+pg_mhead:   call init_hw                                     ; game palette back (the title picture sets its own)
+            ld a,3 : ld (txt_fg),a
+            ld b,7 : ld c,3 : ld hl,s_by : call print_at
+            ld a,3 : ld (txt_fg),a                           ; bottom centre: VERSION : build
+            ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
+            ld b,17 : ld c,23 : ld hl,s_ver : call print_at
+            ld a,(vz_car) : ld (idle_vz),a                   ; this screen: if another one is drawn the timer disarms itself
+            ld a,1 : ld (idle_en),a
+            ld hl,0 : ld (idle_cnt),hl
+            xor a : ld (idle_go),a
+            ret
+idle_tick:  ld a,(idle_en) : or a : ret z
+            ld a,(vz_car) : ld hl,idle_vz : cp (hl) : jr z,.s
+            xor a : ld (idle_en),a : ret
+.s:         push bc : push de : push hl
+            call menu_in : or a : jr nz,.r                   ; any key or joystick: start counting again
+            ld hl,(idle_cnt) : inc hl : ld (idle_cnt),hl
+            ld de,1000 : or a : sbc hl,de : jr c,.o          ; 1000 frames = 20 s
+            ld a,1 : ld (idle_go),a : xor a : ld (idle_en),a
+            jr .o
+.r:         ld hl,0 : ld (idle_cnt),hl
+.o:         pop hl : pop de : pop bc
+            ret
+pg_title:   push af
+            nextreg REG_PAL_CTRL,$10                         ; Layer 2 first palette: the plain RGB332 ramp the picture was drawn for
+            ld b,0 : xor a
+.pp:        nextreg REG_PAL_IDX,a : nextreg REG_PAL_VAL8,a : inc a : djnz .pp
+            xor a : ld (ty),a : ld (tk),a
+.pg:        ld a,(tk) : add a,TITLE_PG : nextreg REG_MMU7,a
+            ld hl,$E000 : ld b,32
+.r:         push bc
+            ld a,(ty) : ld e,0 : call l2_row_addr
+            ld bc,256 : ldir
+            ld a,(ty) : inc a : ld (ty),a
+            pop bc : djnz .r
+            ld a,(tk) : inc a : ld (tk),a : cp 6 : jr c,.pg
+            pop af : or a : ret z                            ; start-up: leave it on screen
+            ld a,1 : ld (ttl_on),a
+            ld hl,500                                        ; 10 s, or any key
+.h:         push hl : call wait_frame : call menu_in : pop hl : or a : jr nz,.x
+            dec hl : ld a,h : or l : jr nz,.h
+.x:         xor a : ld (ttl_on),a
+            ret
