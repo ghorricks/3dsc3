@@ -404,7 +404,22 @@ def car_patterns():
                 if 0<=X<16 and 0<=Y<16: px[Y,X]=col_
         out+=bytes(px[5:15].flatten().tolist())            # only rows 5..14 ever contain car pixels
     return bytes((out[i]<<4)|out[i+1] for i in range(0,len(out),2))   # two pixels per byte (values 0..8): 80 bytes per heading
-cars=car_patterns(); open(B+"cars.bin","wb").write(cars); open(B+"bigcar.bin","wb").write(BIGCAR)
+cars=car_patterns()
+_rc=os.path.join(os.path.dirname(os.path.abspath(__file__)),"ref_car.png")
+if os.path.exists(_rc):                                   # the menu car is drawn pixel for pixel from the supplied low-res reference
+    _im=Image.open(_rc).convert("RGB"); _w,_h=_im.size; _b=bytearray([_w,_h])
+    for _y in range(_h):
+        for _x in range(_w):
+            r,g,b=_im.getpixel((_x,_y)); v=0
+            if r>200 and g>200 and b<120: v=7
+            elif abs(r-g)<8 and abs(g-b)<8 and 25<g<60: v=6
+            elif b>g and b>=90 and r<80: v=5
+            elif g>=200: v=1
+            elif g>=130: v=2
+            elif g>=80: v=3
+            _b.append(v)
+    BIGCAR=bytes(_b)
+open(B+"cars.bin","wb").write(cars); open(B+"bigcar.bin","wb").write(BIGCAR)
 # contact sheet of the car model (8x zoom), blue
 shade=[(0,0,0),(120,160,255),(70,110,230),(30,60,150),(50,80,190),(10,20,40),(40,40,40),(255,255,120),(255,60,60)]
 cs=Image.new("RGB",(16*8*8,16*8*4),(70,110,70))
