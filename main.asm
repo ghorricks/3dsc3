@@ -9,6 +9,10 @@ PROMPT_C    equ 41
         INCLUDE "src/defs.asm"
 
 GRASS       equ 32
+SURF_BLK    equ $FF00                           ; per-track surface block at the end of the track bank (tools/surfaces.py)
+SURF_TYRE   equ $FF44
+SURF_INF    equ $FF28                           ; 220 bits, one per tree try: 1 = infield
+SURF_OUT    equ $FF84
         ORG $8000
 start:
         di
@@ -36,14 +40,15 @@ session:
         call mus_off                    ; the race screen has the engines, not the tune
         ld a,4 : out ($FE),a : nextreg $4A,$14      ; green border
         call get_meta
-        call load_palette
         call map_track
+        call load_palette
         call render_track               ; clean image -> clean copy pages
         call copy_clean_to_l2
         call draw_board
         call draw_startline
         call draw_grid                  ; "[" slot markings behind each starting position
         call draw_best                  ; bottom right: the track's best lap
+        call map_track                  ; draw_best may have left a score page in the window: the surface scenery tables live in the track bank
         call draw_trees
         call hud_clear_old              ; nothing of the last race (places, flags, boosts, best laps) goes into the new top bar
         call hud_static
@@ -399,6 +404,11 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
         ld a,e : cp $92 : ld a,$B6 : jr c,.mk       ; grid markings: light grey, but darker on a light road (track 3)
         ld a,$6D
 .mk:    nextreg REG_PAL_IDX,40 : nextreg REG_PAL_VAL8,a
+        ld hl,SURF_BLK+1 : ld b,(hl) : inc hl           ; this track's surface palette (road, ground, scenery, tyres, specks): n x (index, 9-bit colour)
+.sp:    ld a,(hl) : inc hl : nextreg REG_PAL_IDX,a
+        ld a,(hl) : inc hl : nextreg $44,a
+        ld a,(hl) : inc hl : nextreg $44,a
+        djnz .sp
         ret
 
 map_track:                                          ; 16K bank 16+idx -> $C000-$FFFF
@@ -410,6 +420,7 @@ map_track:                                          ; 16K bank 16+idx -> $C000-$
 ; Render the clean track image into the clean-copy pages, bottom row first so every
 ; fence pixel knows its distance above its base line (3D fence: base, panel, top rail, posts).
 render_track:
+        nextreg REG_MMU1,106
         ld hl,dist_arr : ld de,dist_arr+1 : ld bc,255 : ld (hl),255 : ldir
         ld a,191 : ld (cur_y),a
 .row:   ld a,(cur_y) : ld b,a
@@ -447,7 +458,7 @@ render_track:
 .post:  ld a,7 : jr .put
 .nofence:
         ld a,ixh : and 2 : jr nz,.road
-        ld a,(cur_y) : cp 9 : ld a,0 : jr c,.put    ; HUD strip stays black
+        ld a,(cur_y) : cp 12 : ld a,0 : jr c,.put   ; HUD strip (12 rows) stays black, including the far right column
         ld a,GRASS : jr .put                        ; grass outside the fence
 .road:  ld a,(cur_y) : ld ixh,a : add a,a : add a,a : add a,ixh : xor l : ld ixh,a   ; dirt texture: scattered specks (pseudo-random per pixel)
         rlca : rlca : rlca : add a,ixh : ld ixh,a : rrca : rrca : xor l : add a,ixh : ld ixh,a : rlca : xor ixh : and 15
@@ -585,7 +596,7 @@ update_car:
 .same:  ld a,(turn_run) : cp 200 : jr nc,.tr
         inc a : ld (turn_run),a
 .tr:    ld a,(turn_run) : cp 3 : jr c,.nosteer      ; under about 30 degrees of turn: no skid, no scrub
-        ld a,(speed) : cp 250 : jr c,.drag          ; full speed with the accelerator held, turning hard: tyres lose grip
+        ld a,(speed) : ld hl,SURF_BLK : cp (hl) : jr c,.drag     ; at the skid speed of this surface (250 top speed, lower on dirt and ice) with the accelerator held, turning hard: tyres lose grip
         ld a,(dir) : or a : jr nz,.drag
         bit ACC,c : jr z,.drag
         ld a,14 : ld (skid),a
@@ -1330,13 +1341,15 @@ draw_trees:
 .c:     ld a,(de) : cp GRASS : jr nz,.nx
         inc e : djnz .c
         ld hl,tr_r : inc (hl) : dec c : jr nz,.r
-        ld hl,tree_tab : call draw_tab
-.nx:    ld a,(tr_n) : dec a : ld (tr_n),a : jr nz,.t
+        ld a,(tr_n) : dec a : ld c,a                       ; this try's bit in the infield map (tools/surfaces.py): a tyre stack inside the track, the scenery of the surface outside
+        srl a : srl a : srl a : ld e,a : ld d,0 : ld hl,SURF_INF : add hl,de
+        ld a,c : and 7 : ld b,a : inc b : ld a,(hl)
+.sh:    rrca : djnz .sh
+        ld hl,SURF_TYRE : jr c,.go
+        ld hl,SURF_OUT
+.go:    call draw_tab
+.nx:    ld a,(tr_n) : dec a : ld (tr_n),a : jp nz,.t
         ret
-tree_tab:
-        db -9,0,1,34, -9,1,1,33, -8,-1,2,34, -8,1,2,33
-        db -7,-2,3,34, -7,1,3,33, -6,-2,3,34, -6,1,3,33, -5,-2,3,34, -5,1,3,33, -4,-2,3,34, -4,1,3,33
-        db -3,0,2,35, -2,0,2,35, -1,0,2,35, $7F
 tr_x: db 0
 tr_y: db 0
 tr_n: db 0
@@ -1605,7 +1618,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111937",0
+s_ver: db "26111938",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

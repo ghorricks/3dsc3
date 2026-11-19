@@ -52,5 +52,5 @@ FENCE_H             equ 5
 REV_MAX             equ 100
 NHEAD               equ 32
 
-dist_arr            equ $FF00          ; 256-byte scratch in the spare end of the track bank
+dist_arr            equ $2000          ; 256-byte scratch while the track is drawn: 8K page 106 mapped into MMU1 (the end of the track bank now holds the surface block)
 BOOST_FRAMES      equ 100            ; 2 seconds at 50 Hz

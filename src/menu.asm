@@ -117,30 +117,30 @@ menu_drw:                                           ; rows md_lo .. md_end-1: se
         ld a,c : cp 4 : jr nc,.o
         ld e,a : ld d,0 : ld hl,hud_pos : add hl,de : add hl,de : ld a,(hl) : ld (txt_fg),a    ; the car's own colour
         ld a,c : add a,a : ld e,a : ld d,0 : ld hl,car_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
-        ld a,(md_row) : ld c,a : ld b,7 : call print_at
+        ld a,(md_row) : ld c,a : ld b,9 : call print_at
         pop bc : push bc
         ld a,c : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld a,(hl) : add a,a : ld e,a : ld d,0
         ld hl,ctl_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         ld (md_str),hl
-        ld a,(md_row) : ld c,a : ld b,15 : call print_at
-        ld a,15 : ld (md_col),a : jp .vm
+        ld a,(md_row) : ld c,a : ld b,17 : call print_at
+        ld a,17 : ld (md_col),a : jp .vm
 .o:     cp 7 : jp nc,.cen
         ld a,4 : ld (txt_fg),a
         ld a,c : sub 4 : add a,a : ld e,a : ld d,0 : ld hl,row_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
-        ld a,(md_row) : ld c,a : ld b,2 : call print_at
+        ld a,(md_row) : ld c,a : ld b,4 : call print_at
         pop bc : push bc
         ld a,c : cp 4 : jr nz,.r5
         ld a,(difficulty) : add a,a : ld e,a : ld d,0 : ld hl,diff_names : add hl,de : ld e,(hl) : inc hl : ld d,(hl) : ex de,hl
         jr .pv
 .r5:    cp 5 : jr nz,.r6
-        ld a,3 : ld (txt_fg),a : ld a,15 : ld (txt_col),a : ld (md_col),a : ld a,(md_row) : ld (txt_row),a
+        ld a,3 : ld (txt_fg),a : ld a,17 : ld (txt_col),a : ld (md_col),a : ld a,(md_row) : ld (txt_row),a
         ld a,(track_idx) : inc a : call print_dec2
         ld d,2 : jr .vm2
-.r6:    ld a,3 : ld (txt_fg),a : ld a,15 : ld (txt_col),a : ld (md_col),a : ld a,(md_row) : ld (txt_row),a
+.r6:    ld a,3 : ld (txt_fg),a : ld a,17 : ld (txt_col),a : ld (md_col),a : ld a,(md_row) : ld (txt_row),a
         ld a,(laps_i) : add a,3 : call print_dec2
         ld d,2 : jr .vm2
-.pv:    ld (md_str),hl : ld a,15 : ld (md_col),a
-        ld a,(md_row) : ld c,a : ld b,15 : call print_at
+.pv:    ld (md_str),hl : ld a,17 : ld (md_col),a
+        ld a,(md_row) : ld c,a : ld b,17 : call print_at
 .vm:    ld hl,(md_str) : call tlen : ld d,a
 .vm2:   ld a,(md_col) : ld b,a : ld a,(md_row) : ld c,a : call mv_mark
         jr .nx

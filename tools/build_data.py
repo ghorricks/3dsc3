@@ -33,7 +33,8 @@ HEAD=[(math.cos(a*2*math.pi/NH),math.sin(a*2*math.pi/NH)*0.5) for a in range(NH)
 def c332(r,g,b): return ((int(r)>>5)<<5)|((int(g)>>5)<<2)|(int(b)>>6)
 ZXRGB=[(0,0,0),(0,0,255),(255,0,0),(255,0,255),(0,255,0),(0,255,255),(255,255,0),(255,255,255)]
 SURF={"tarmac":0x49,"sand":0xB4,"gravel":0xB6,"dirt":0x88}
-SURFACE=["dirt"]*25   # all tracks use the new standard dirt (title-screen brown); tarmac levels to be revisited
+TRACK_YOFF_=0
+import surfaces as SFX                    # TRACK / DIRT / ICE / SAND, assigned 1,2,3,4 then repeating (tools/surfaces.py)
 SURFRGB={0x49:(70,70,70),0xB4:(182,182,0),0xB6:(180,180,180),0x88:(145,72,0)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
 TWOLEG={20:(177,180)}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
@@ -328,13 +329,25 @@ for n in range(1,26):
     PATHS[n]=(px,py)
     if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
+    _inf=np.zeros((H,W),bool)
+    for _l in range(1,_lab.max()+1):
+        if _l==_lab[sy,sx]: continue
+        _ys,_xs=np.nonzero(_lab==_l)
+        if len(_ys)<120 or _xs.min()<=0 or _ys.min()<=0 or _xs.max()>=W-1 or _ys.max()>=H-1: continue      # the outside of the track touches the picture edge: only enclosed islands are infield
+        _inf[_lab==_l]=True
+    _tx=(n-1)*4+11 & 255; _ty=(_tx*2+1)&255; _bits=[]          # the game's tree spots: same generator as draw_trees
+    for _k in range(220):
+        _tx=(_tx*5+17)&255; _ty=(_ty*9+3)&255
+        _bits.append(bool(4<=_tx<250 and 18<=_ty<190 and _ty-5<H and _inf[_ty-5,_tx]))
+    _bits=_bits[::-1]                                              # tr_n counts down: index tr_n-1
+    page[0x3F00:0x4000]=SFX.block(SFX.surf_of(n),_bits)
     page[0x3C00:0x3C00+npts]=bytes(px); page[0x3D00:0x3D00+npts]=bytes(py)
     ph=[]
     for i in range(npts):
         j=(i+2)%npts; ph.append(int(round(math.atan2(2*(py[j]-py[i]),px[j]-px[i])/(2*math.pi/NH)))%NH)
     page[0x3E00:0x3E00+npts]=bytes(ph)
     open(B+f"track{n:02d}.pg","wb").write(page)
-    road=SURF[SURFACE[n-1]]
+    _sn=SFX.surf_of(n); road=SFX.road8(_sn); SURFRGB[road]=SFX.SURF[_sn]['road']
     lo=c332(*[v*0.45 for v in wc]); mid=c332(*[v*0.85 for v in wc]); hi=c332(*[min(255,v*0.85+80) for v in wc]); post=c332(*[min(255,v*0.85+40) for v in wc])
     meta.append((sx,sy,head,lo,mid,hi,post,road,dmax,bcol,brow,npts))
     img=render(base,ground,wc,SURFRGB[road]); PREV.append(img)

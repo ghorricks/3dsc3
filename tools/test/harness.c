@@ -8,7 +8,7 @@ static uint8_t ram[224*8192]; static uint8_t mmu[8]={0xFF,0xFF,10,11,4,5,0,1};
 static uint8_t pad2; static uint8_t regs[256], nsel, pal[256], palidx, padval, ayreg; static int palsel;
 static int ifr; static unsigned long lastint; static int wcnt[8]; static unsigned long prof[65536]; static unsigned long wsum,wmax,last_exit; static int wn,wf_lastf; static unsigned wf_addr; static int cpu_bad[3]; static uint8_t spr[8]; static int sprn, patcount; static int mode=0; static uint8_t ay[16]; static int ras=0, frames=0;
 static uint8_t rd(void*u,uint16_t a){uint8_t p=mmu[a>>13]; return p==0xFF?0:ram[p*8192+(a&0x1FFF)];}
-static unsigned minsp; static uint16_t curpc; static void* zz; static void wr(void*u,uint16_t a,uint8_t v){ if(getenv("WBOOST")){ static uint16_t ba=0; if(!ba) ba=strtoul(getenv("WBOOST"),0,16); if(a==ba) printf("WB %02X pc=%04X frames=%d\n",v,curpc,frames); } if(getenv("WW")&&a>=0xB1FF&&a<0xB210&&mmu[a>>13]==5){ static int nn=0; if(nn++<4) printf("WRITE %04X=%02X by pc=%04X ix=%04X sp=%04X frames=%d stk:",a,v,curpc,((struct z80*)zz)->ix,((struct z80*)zz)->sp,frames); if(nn==1){ unsigned sp=((struct z80*)zz)->sp; for(int q=0;q<10;q++) printf(" %02X%02X",ram[5*8192+((sp+2*q+1)&0x1FFF)],ram[5*8192+((sp+2*q)&0x1FFF)]); } printf("\n"); }uint8_t p=mmu[a>>13]; if(p!=0xFF) ram[p*8192+(a&0x1FFF)]=v;}
+static unsigned minsp; static uint16_t curpc; static void* zz; static void wr(void*u,uint16_t a,uint8_t v){ if(getenv("WFF")&&a>=0xFF40&&a<0xFF50&&mmu[a>>13]==35){ static int nn=0; if(nn++<6){ printf("WFF %04X=%02X pc=%04X\n",a,v,curpc); fflush(stdout);} } if(getenv("WBOOST")){ static uint16_t ba=0; if(!ba) ba=strtoul(getenv("WBOOST"),0,16); if(a==ba) printf("WB %02X pc=%04X frames=%d\n",v,curpc,frames); } if(getenv("WW")&&a>=0xB1FF&&a<0xB210&&mmu[a>>13]==5){ static int nn=0; if(nn++<4) printf("WRITE %04X=%02X by pc=%04X ix=%04X sp=%04X frames=%d stk:",a,v,curpc,((struct z80*)zz)->ix,((struct z80*)zz)->sp,frames); if(nn==1){ unsigned sp=((struct z80*)zz)->sp; for(int q=0;q<10;q++) printf(" %02X%02X",ram[5*8192+((sp+2*q+1)&0x1FFF)],ram[5*8192+((sp+2*q)&0x1FFF)]); } printf("\n"); }uint8_t p=mmu[a>>13]; if(p!=0xFF) ram[p*8192+(a&0x1FFF)]=v;}
 static void nreg(uint8_t r,uint8_t v){ regs[r]=v;
   if(r>=0x50&&r<=0x57) mmu[r-0x50]=v;
   else if(r==0x43) palsel=(v>>4)&7;
@@ -62,6 +62,9 @@ int main(int argc,char**argv){
     else if(getenv("UPDT") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("hs_update"); }
     else if(getenv("UPDT") && (pc==symaddr("pg_update.k1")||pc==symaddr("ud_fail")+0*1) && !upd_hit++ ){ printf("UPDATE reached %04X frames %d\n",pc,frames); if(pc==symaddr("pg_update.k1")) frames=4+accel_frames+40; }
     else if(getenv("MUSLOG") && pc==symaddr("menu_run.loop") && frames>=atoi(getenv("MUSLOG"))){ frames=4+accel_frames+40; }
+    else if(getenv("DUMPFF") && pc==symaddr("render_track") && !ms_done && (ms_done=1)){ for(int q=0;q<16;q++) printf("%02X ",rd(0,0xFF00+q)); printf("| pal32=%02X pal33=%02X pal44=%02X palsel=%d\n",pal[32],pal[33],pal[44],palsel); }
+    else if(getenv("DTT") && pc==({static unsigned dtt=0; if(!dtt) dtt=symaddr("draw_trees"); dtt;})){ static int nn=0; if(nn++<3){ printf("go mm6=%d mm7=%d :",mmu[6],mmu[7]); for(int q=0;q<16;q++) printf(" %02X",rd(0,0xFF44+q)); printf(" | "); for(int q=0;q<16;q++) printf(" %02X",rd(0,0xFF76+q)); printf("\n"); fflush(stdout); printf("\n"); } }
+    else if(getenv("DTP") && (pc==({static unsigned a1=0; if(!a1) a1=symaddr("draw_tab"); a1;}) || pc==({static unsigned a2=0; if(!a2) a2=symaddr("sl_px"); a2;}))){ static int cnt=0,calls=0; static unsigned a1=0; if(!a1) a1=symaddr("draw_tab"); if(pc==a1){ if(calls<12 && calls>0){ printf("call %d px=%d next hl=%04X\n",calls,cnt,(z.h<<8)|z.l); fflush(stdout);} calls++; cnt=0; } else cnt++; }
     else if(getenv("TITLESHOT") && pc==symaddr("net_try") && !ms_done && (ms_done=1)){ dump(getenv("TITLESHOT")); }
     else if(getenv("TTLSHOT") && pc==symaddr("pg_title.h") && ++tth==30){ dump(getenv("TTLSHOT")); }
     else if(getenv("MENUSHOT") && pc==symaddr("menu_run.loop") && ++vzh>=(getenv("VZF")?atoi(getenv("VZF")):0) && !ms_done && (ms_done=1)){ dump(getenv("MENUSHOT")); frames=4+accel_frames+40; }
@@ -83,6 +86,10 @@ int main(int argc,char**argv){
     if(wf_addr==0) wf_addr=symaddr("wait_frame");
     if(z.pc==wf_addr && frames>40){ if(last_exit){ unsigned long w=z.cyc-last_exit; wsum+=w; wn++; if(w>wmax)wmax=w; if(w>(getenv("SPK")?atol(getenv("SPK")):600000)) printf("SPIKE f%d w=%lu\n",frames,w); } }
     if(frames!=wf_lastf){ wf_lastf=frames; last_exit=z.cyc; }
+    if(getenv("FRDUMP") && frames!=wf_lastf-0 && 0){}
+
+    if(getenv("FRDUMP")){ static int lf=-1; int a=atoi(getenv("FRDUMP")); if(frames!=lf){ lf=frames; if(frames>=a&&frames<a+60){ char nm[64]; snprintf(nm,64,"/tmp/fr/f%d.ppm",frames); dump(nm);} } }
+    if(getenv("HUD_T")){ static unsigned hu=0,hmax=0; static unsigned long tot=0; static int hn=0; if(!hu) hu=symaddr("hud_update"); if(z.pc==hu && frames>40 && last_exit){ unsigned d=z.cyc-last_exit; tot+=d; hn++; if(d>hmax){ hmax=d; printf("DRAWEND f%d cyc=%u (avg so far %lu)\n",frames,d,tot/hn); fflush(stdout);} } }
     if(frames!=lastf){ lastf=frames;
       int sf=(getenv("MUSLOG")||getenv("DBGT"))?100000:4;
       if(getenv("MSEL")&&frames==30) dump("build/hs.ppm");
