@@ -1366,7 +1366,7 @@ snd_lead: dw 0
 
 ; ----------------------------------------------------------------- menu music (tools/mkmusic.py streams, 8K pages from MUS_PG; runs from the 50 Hz interrupt)
 MUS_PG      equ 84
-TITLE_PG    equ 24                                          ; the title picture: pages 24-29 (free 8K pages below the 2 MB banks)
+TITLE_PG    equ 24                                          ; the title picture, LZSS packed: pages 24-25 (free 8K pages below the 2 MB banks)
 JING_PG     equ 92                                          ; the first-place jingle (page 92: track 25 owns 90-91)
 MUS_WIN     equ $4000                                       ; the tune's page is borrowed into slot 2 for a moment each frame
 mus_on:     db 0
@@ -1600,7 +1600,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111928",0
+s_ver: db "26111929",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1746,24 +1746,12 @@ car_pat:    INCBIN "build/cars.bin"
             INCLUDE "src/p81.asm"                   ; 32 headings x 80 bytes (the page holding the logo has room: main code was running past $BFFF)
 
             INCLUDE "build/music.inc"
-            MMU 7, TITLE_PG+0
+            MMU 7, TITLE_PG
             ORG $E000
-            INCBIN "build/title.bin",0,8192
+            INCBIN "build/title_a.lz"
             MMU 7, TITLE_PG+1
             ORG $E000
-            INCBIN "build/title.bin",8192,8192
-            MMU 7, TITLE_PG+2
-            ORG $E000
-            INCBIN "build/title.bin",16384,8192
-            MMU 7, TITLE_PG+3
-            ORG $E000
-            INCBIN "build/title.bin",24576,8192
-            MMU 7, TITLE_PG+4
-            ORG $E000
-            INCBIN "build/title.bin",32768,8192
-            MMU 7, TITLE_PG+5
-            ORG $E000
-            INCBIN "build/title.bin",40960,8192
+            INCBIN "build/title_b.lz"
 
 
             SAVENEX OPEN "stockcar.nex", start, dc_lut

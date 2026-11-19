@@ -442,7 +442,7 @@ if os.path.exists(_rc):                                   # the menu car is draw
             elif g>=80: v=3
             _b.append(v)
     BIGCAR=bytes(_b)
-open(B+"title.bin","wb").write(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"title.nxi"),"rb").read()[:49152])
+import lzss; lzss.build(os.path.join(os.path.dirname(os.path.abspath(__file__)),"title.nxi"),B+"title")
 open(B+"cars.bin","wb").write(cars); open(B+"bigcar.bin","wb").write(BIGCAR)
 # contact sheet of the car model (8x zoom), blue
 shade=[(0,0,0),(120,160,255),(70,110,230),(30,60,150),(50,80,190),(10,20,40),(40,40,40),(255,255,120),(255,60,60)]

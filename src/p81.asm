@@ -176,15 +176,13 @@ pg_title:   push af
             nextreg REG_PAL_CTRL,$10                         ; Layer 2 first palette: the plain RGB332 ramp the picture was drawn for
             ld b,0 : xor a
 .pp:        nextreg REG_PAL_IDX,a : nextreg REG_PAL_VAL8,a : inc a : djnz .pp
-            xor a : ld (ty),a : ld (tk),a
-.pg:        ld a,(tk) : add a,TITLE_PG : nextreg REG_MMU7,a
-            ld hl,$E000 : ld b,32
-.r:         push bc
-            ld a,(ty) : ld e,0 : call l2_row_addr
-            ld bc,256 : ldir
-            ld a,(ty) : inc a : ld (ty),a
-            pop bc : djnz .r
-            ld a,(tk) : inc a : ld (tk),a : cp 6 : jr c,.pg
+            ld a,TITLE_PG : nextreg REG_MMU7,a : ld hl,$E000
+            xor a : ld (tk),a
+.pg:        ld a,(tk) : add a,a : add a,18 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a      ; Layer 2 bank k (16 KB) at $0000
+            ld a,(tk) : cp 2 : jr nz,.sm
+            ld a,TITLE_PG+1 : nextreg REG_MMU7,a : ld hl,$E000                                   ; the third bank's stream is in the second page
+.sm:        ld de,0 : call lz_dec
+            ld a,(tk) : inc a : ld (tk),a : cp 3 : jr c,.pg
             pop af : or a : ret z                            ; start-up: leave it on screen
             ld a,1 : ld (ttl_on),a
             ld hl,500                                        ; 10 s, or any key
@@ -192,3 +190,18 @@ pg_title:   push af
             dec hl : ld a,h : or l : jr nz,.h
 .x:         xor a : ld (ttl_on),a
             ret
+lz_dec:     ld ixl,$80                                        ; bit buffer empty
+.l:         call .gb : jr nc,.m
+            ld a,(hl) : inc hl : ld (de),a : inc de             ; literal
+            jr .c
+.m:         ld c,(hl) : inc hl : ld b,(hl) : inc hl             ; match: offset low, offset high nibble | length-3
+            push hl
+            ld a,b : and $F0 : rrca : rrca : rrca : rrca : ld h,a : ld l,c
+            ld a,b : and 15 : add a,3 : ld c,a : ld b,0
+            push de : ex de,hl : or a : sbc hl,de : pop de      ; HL = dest - offset
+            ldir : pop hl
+.c:         ld a,d : cp $40 : jr c,.l                          ; one 16 KB bank done
+            ret
+.gb:        ld a,ixl : add a,a : jr nz,.g1
+            ld a,(hl) : inc hl : rla
+.g1:        ld ixl,a : ret
