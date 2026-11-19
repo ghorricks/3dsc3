@@ -1,15 +1,21 @@
 ; ===================================================================== best laps + online scores
 ; Lives in RAM page HS_PG, which is mapped at $E000 while any of this runs (the stubs in main.asm map it).
-; $E000-$E77F: 24 tracks x 10 entries x 8 bytes: name (5), time in hundredths of a second (2), synced flag (1 = on the server).
+; $E000-$E7CF: 25 tracks x 10 entries x 8 bytes: name (5), time in hundredths of a second (2), synced flag (1 = on the server).
 ; Code from $E7A0.  Local table is saved to 3DSC3.SAV; new records are sent to the online table with the .http dot command.
 HS_ENT      equ $E000
 
 pg_init:                                            ; every record starts as 3DSC3 99.9S
-        ld de,HS_ENT : ld a,240
+        ld de,HS_ENT : ld a,250
 .l:     push af : ld hl,hs_def : ld bc,8 : ldir : pop af : dec a : jr nz,.l
         ld hl,pn_def : ld de,pn_tab : ld bc,20 : ldir
         xor a : ld (HS_MARK),a
+        xor a : ld (sv_n),a : ld (sv_n+1),a
         call sv_load                                ; records and player names saved by an earlier session
+        ld hl,(sv_n) : ld de,1941 : or a : sbc hl,de : jr nz,.nm  ; a 24-track save (1941 bytes): names + marker move up behind the new track 25 table
+        ld hl,HS_ENT+1920 : ld de,HS_NAMES : ld bc,21 : ldir
+        ld de,HS_ENT+1920 : ld a,10
+.t25:   push af : ld hl,hs_def : ld bc,8 : ldir : pop af : dec a : jr nz,.t25
+.nm:
         call hs_mig
         ld hl,pn_tab : ld b,4                       ; old saves hold PLAY1..PLAY4 as the unchosen name: back to a plain "A"
 .mg:    ld a,(hl) : cp 15 : jr nz,.mn
@@ -24,7 +30,7 @@ pg_init:                                            ; every record starts as 3DS
         jp pg_vcheck                                ; and is there a newer build?
 hs_mig:     ld a,(HS_MARK) : or a : ret nz                   ; an older save: every time gets a zero appended (tenths -> hundredths)
             inc a : ld (HS_MARK),a
-            ld ix,HS_ENT+5 : ld b,240
+            ld ix,HS_ENT+5 : ld b,250
 .m:         ld l,(ix+0) : ld h,(ix+1) : ld de,999 : or a : sbc hl,de : jr nc,.d
             add hl,de : ld d,h : ld e,l : add hl,hl : add hl,hl : add hl,de : add hl,hl
             jr .s
@@ -33,21 +39,19 @@ hs_mig:     ld a,(HS_MARK) : or a : ret nz                   ; an older save: ev
             ld de,8 : add ix,de : djnz .m
             ret
 hs_def: db "3DSC3",$0F,$27,1
-HS_MARK     equ HS_ENT+1940                         ; 1 = the saved times are in hundredths (older saves hold tenths)
-HS_NAMES    equ HS_ENT+1920                         ; the four players' names (5 character indices each) are saved with the table
+HS_MARK     equ HS_ENT+2020                         ; 1 = the saved times are in hundredths (older saves hold tenths)
+HS_NAMES    equ HS_ENT+2000                         ; the four players' names (5 character indices each) are saved with the table
 pn_tab      equ HS_NAMES
 pn_def:     db 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36     ; just an "A" until a player types a name
 
 hs_ptr:                                             ; -> HL = first entry of the current track
-        ld a,(track_idx) : cp 24 : jr c,.n
-        ld hl,hs_dummy : ret                            ; track 25 keeps no records: an empty table that nothing writes
-.n:     ld d,a : ld e,80 : mul d,e : ld hl,HS_ENT : add hl,de
+        ld a,(track_idx)
+     ld d,a : ld e,80 : mul d,e : ld hl,HS_ENT : add hl,de
         ret
 
 hs_rank:                                            ; DE = tenths -> A = place 0..9, or 10 when it does not make the table
-        ld a,(track_idx) : cp 24 : jr c,.hk
-        ld a,10 : ret
-.hk:
+        ld a,(track_idx)
+
         push de : call hs_ptr : push hl : pop ix : pop de
         xor a : ld (hr_i),a
 .l:     ld c,(ix+5) : ld b,(ix+6) : ld h,d : ld l,e : or a : sbc hl,bc : jr c,.f
@@ -360,7 +364,6 @@ pg_vcheck:
         ld hl,upd_ver : ld de,upd_sv : ld bc,8 : ldir        ; the selected form of the menu text
         ld hl,$C000 : ld de,upd_line : ld bc,64 : ldir       ; keep the whole line: path and size
         ret
-upd_line:   ds 64
             db 0
 s_c3:       db "&name=",0
 s_c4:       db "&time=",0
@@ -449,7 +452,7 @@ tmp_name:   db "3DSC3.TMP",0
 ; --- parse the ?track=all reply: "T,NAME,42.3" lines at $C000 into the cache (page 82: counts at OC_CNT, 10 x 8 bytes per track at OC_ENT)
 OC_CNT      equ $D000
 OC_ENT      equ $D100
-net_parse:  ld hl,OC_CNT : ld de,OC_CNT+1 : ld bc,23 : ld (hl),0 : ldir
+net_parse:  ld hl,OC_CNT : ld de,OC_CNT+1 : ld bc,24 : ld (hl),0 : ldir
             ld hl,$C000
 .ln:        ld a,(hl) : or a : ret z
             ld (np_ln),hl : ld d,0
@@ -458,7 +461,7 @@ net_parse:  ld hl,OC_CNT : ld de,OC_CNT+1 : ld bc,23 : ld (hl),0 : ldir
             ld e,a : ld a,d : add a,a : ld c,a : add a,a : add a,a : add a,c : add a,e : ld d,a
             inc hl : jr .td
 .tk:        inc hl : ld a,d : or a : jr z,.sk
-            dec a : cp 24 : jr nc,.sk
+            dec a : cp 25 : jr nc,.sk
             ld (np_t),a : ld e,a : ld d,0
             push hl : ld hl,OC_CNT : add hl,de : ld a,(hl) : pop hl
             cp 10 : jr nc,.sk                                  ; the table of a track holds 10 records
@@ -525,7 +528,7 @@ net_sync:   xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
             ld (sy_fail),a : jr .end
 .ok:        ld (ix+7),1 : ld a,1 : ld (sy_chg),a
 .nx:        ld de,8 : add ix,de : dec b : jp nz,.en
-            ld hl,ns_t : inc (hl) : ld a,(hl) : cp 24 : jp c,.tr
+            ld hl,ns_t : inc (hl) : ld a,(hl) : cp 25 : jp c,.tr
 .end:       ld a,(sy_fail) : or a : jr z,.sv
             call net_show : ld b,150
 .wt:        push bc : call wait_frame : pop bc : djnz .wt
@@ -565,11 +568,12 @@ sv_open:    ld ix,sv_name
 sv_open2:   nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; the esxDOS trap wants ROM at 0000-3FFF
             ld a,'*' : rst 8 : db $9A : ret
 sv_load:    ld b,1 : call sv_open : ret c
-            ld (sv_h),a : ld ix,HS_ENT : ld bc,1941 : rst 8 : db $9D : jr sv_close
+            ld (sv_h),a : ld ix,HS_ENT : ld bc,2021 : rst 8 : db $9D : ld (sv_n),bc : jr sv_close
 sv_save:    ld b,$0E : call sv_open : ret c                   ; write, create or truncate
-            ld (sv_h),a : ld ix,HS_ENT : ld bc,1941 : rst 8 : db $9E
+            ld (sv_h),a : ld ix,HS_ENT : ld bc,2021 : rst 8 : db $9E
 sv_close:   ld a,(sv_h) : rst 8 : db $9B : ret
 sv_h:       db 0
+sv_n:       dw 0                                              ; bytes read from the save file
 sv_name:    db "3DSC3.SAV",0
 
 
@@ -1011,6 +1015,3 @@ s_ud4:      db "UPDATE DOWNLOADED",0
 s_ud5:      db "LOAD IT TO PLAY THE NEW BUILD",0
 s_ud6:      db "PRESS ANY KEY OR FIRE TO EXIT",0
 s_ud7:      db "UPDATE FAILED",0
-ud_fn:      ds 20
-ud_sz:      ds 3
-ud_buf:     ds 4

@@ -1597,7 +1597,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111922",0
+s_ver: db "26111923",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1714,7 +1714,10 @@ mus_vec:    ds 257,$BB                                  ; IM2 table: every vecto
             JP mus_isr
 track_tab:
             INCLUDE "build/tracks.inc"                  ; per-track meta, parked behind the IM2 table to give the code room
-hs_dummy:   ds 80                                       ; track 25 keeps no records: an empty table that nothing writes
+upd_line:   ds 64                                       ; scratch for the high-score page (kept here to leave that page room for the track 25 table)
+ud_fn:      ds 20
+ud_sz:      ds 3
+ud_buf:     ds 4
             ALIGN 64
 mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip (aligned so a slot never carries)
 font:       INCBIN "build/font.bin"                     ; after the IM2 table and its jump (the code had grown into $BA00 and the font sat on the vectors)
@@ -1724,7 +1727,7 @@ font:       INCBIN "build/font.bin"                     ; after the IM2 table an
 
 ; --- best laps, file access and online scores live in the high-score page, which is mapped at $E000 while they run
             MMU 7, HS_PG
-            ORG $E7A0                               ; the table (1920 bytes) + names + format marker end at $E795
+            ORG $E7F0                               ; the table (2000 bytes) + names + format marker end at $E7E4
             INCLUDE "src/hiscore.asm"
             ASSERT $ < $FFFF
             MMU 6, 81
