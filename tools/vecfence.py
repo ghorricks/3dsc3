@@ -3,6 +3,7 @@
 import numpy as np, cv2, math
 from scipy import ndimage as ndi
 H,W=192,256
+ROUND=False
 CLEAN=True        # tracks 12+: free ends / level lines tidied; tracks 9 and 10 (already released) keep their original outlines
 ANG_OLD=[0.0,math.pi/2,math.atan(0.5),math.pi-math.atan(0.5)]   # allowed edge directions (mod pi)
 ANG_ISO=[0.0,math.pi/2,math.atan(0.5),math.pi-math.atan(0.5),math.pi-math.atan(4.0)]   # tracks 12+: the 3D 'vertical' fence runs 1 across for 4 down (the original's far-right fence); a fence that is truly plumb in the original stays plumb
@@ -184,7 +185,7 @@ def vec_base(m,seed,eps=1.8,widen=None):
         ap=cv2.approxPolyDP(c,eps,True)[:,0,:].astype(float).tolist()
         if len(ap)<3: continue
         P=snap(ap)
-        if widen: P=flatten(P)
+        if widen: P=flatten(merge_parallel(P)) if ROUND else flatten(P)       # ROUND: the original's corners are curves (track 14): straighten the runs, keep the bends
         polys.append(P)
         img=np.zeros((H,W),np.uint8)
         pts=np.round(np.array(P)).astype(np.int32)

@@ -1,6 +1,6 @@
 import os
 # Builds all data: clean track banks (base fence plane + ground plane + progress map), meta, car model, speed tables, font.
-import numpy as np, json, math, sys
+import numpy as np, json, math, sys, cv2
 from collections import deque
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
@@ -8,14 +8,23 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
-VEC={11,9,12,10,13}; VEC2={9,12,10,13}
+VEC={11,9,12,10,13,14}; VEC2={9,12,10,13}
 from vecfence import widen_zone
 # track 11: the two long diagonal stretches are narrow: grow them by 5 px into the grass (the vertical stretches stay as they are)
 def _user_lane(L):                      # track 11 is drawn by hand: tools/track11_shape.png (yellow lane on green, 4x the playfield)
     _a=np.array(Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"track11_shape.png")).convert("RGB"))[2::4,2::4]
     return (_a[:,:,0]>120)&(_a[:,:,2]<80)
-WIDEN={11:_user_lane}
+def _lane14(L):                          # track 14: the lane of the original (wide, rounded bends), kept as a mask: tools/lane14.npy
+    from skimage.morphology import disk as _dk
+    L0=np.load(os.path.join(os.path.dirname(os.path.abspath(__file__)),"lane14.npy"))
+    L0=ndi.binary_opening(ndi.binary_closing(np.pad(L0,8),structure=_dk(3)),structure=_dk(2))[8:-8,8:-8]      # tidy the ragged notch behind the grid
+    Z=np.zeros(L0.shape,np.uint8)
+    cv2.fillPoly(Z,[np.array([(0,60),(33,79),(88,109),(88,121),(0,121)],np.int32)],1)                          # the start straight: wider, taken from the grass on its outer (lower-left) side
+    G=ndi.binary_dilation(L0,structure=_dk(6))&(Z>0)
+    return ndi.binary_opening(np.pad(L0|G,8),structure=_dk(3))[8:-8,8:-8]|L0
+WIDEN={11:_user_lane,14:_lane14}
 EXACT=set(range(1,26))
+INFILL=set()
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
 info=json.load(open(B+"tracks.json"))
@@ -73,6 +82,11 @@ for n in range(1,26):
     else:
         raw=np.frombuffer(open(B+f"track{n:02d}.bin","rb").read(),np.uint8).reshape(176,32)
     m=np.unpackbits(raw,axis=1)[:H,:W].astype(bool)
+    if n in INFILL:                         # the infield fence band and grid are green in the original but are not in the wall mask: add them (the area enclosed by the outer fence)
+        _a=np.array(Image.open(os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","orig",f"track{n}_median.png")).convert("RGB"))
+        _g=(_a[:,:,1]>150)&(_a[:,:,0]<60)&(_a[:,:,2]<60)
+        _c=ndi.binary_closing(np.pad(m,6),structure=np.ones((3,3)),iterations=2)[6:-6,6:-6]
+        m=m|(_g&ndi.binary_fill_holes(_c)&~_c)
     if n in (1,2,3,4,21,22) and not EX:      # flag pole in the top-right of the hex tracks: erase its columns above the fence
         m[0:44,197:254]=False
     base=base_lines(repair(vclose(remove_poles(m)))); ground,k,how=ground_k(base,tuple(info[str(n)]["start"]))
@@ -94,7 +108,7 @@ for n in range(1,26):
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n in VEC:                          # vectorised from the faithful wall mask (tools/vecfence.py)
             from vecfence import vec_base,vec_base2
-            import vecfence as _vf; _vf.CLEAN=(n>=12)
+            import vecfence as _vf; _vf.CLEAN=(n>=12); _vf.ROUND=(n==14)
             base=(vec_base2(m,tuple(info[str(n)]['start']))[0] if n in VEC2 else vec_base(m,tuple(info[str(n)]['start']),widen=WIDEN.get(n))[0]); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n==25:                             # designed here (tools/track25.py): the fence is already exact
             base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
@@ -207,6 +221,7 @@ for n in range(1,26):
     sx0,sy0=info[str(n)]["start"]
     _lab,_nl=ndi.label(~solid)                                  # start must lie in the biggest drivable region
     _main=_lab==(1+int(np.argmax(np.bincount(_lab[_lab>0])[1:])))
+    if n in INFILL and _lab[sy0,sx0]>0: _main=_lab==_lab[sy0,sx0]            # track 14: the infield is bigger than the lane band, but the grid is in the band
     def openp(x,y,r):
         return r<=x<W-r and r<=y<H-r and _main[y,x] and not solid[y-r:y+r+1,x-r:x+r+1].any()
     best=None
