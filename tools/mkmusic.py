@@ -18,6 +18,21 @@ def load(fn):
     return frames
 ch=[load(R+f"music9/chip{n}.psg") for n in (1,2,3)]
 assert len(ch[0])==len(ch[1])==len(ch[2]), [len(c) for c in ch]
+FADE=200; GAP=150                           # the last 4 s fade out on all nine channels, then 3 s of silence, then the tune restarts with no fade in
+for c in ch:
+    n=len(c); vol=[0,0,0]; last=[None]*3
+    for k in range(n):
+        for j in range(3):
+            if 8+j in c[k]: vol[j]=c[k][8+j]
+            assert vol[j]<16, "envelope volume in the fade"
+        if k>=n-FADE:
+            for j in range(3):
+                v=vol[j]*(n-k-1)//FADE if False else vol[j]*(n-k)//(FADE+1)
+                if v!=last[j]: c[k][8+j]=v
+                else: c[k].pop(8+j,None)               # an unchanged (scaled) level needs no write
+                last[j]=v
+    for _ in range(GAP): c.append({})
+    c[n-1].update({8:0,9:0,10:0}) if False else None
 def rec(f):
     m=0
     for r in sorted(f): m|=1<<r
