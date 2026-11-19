@@ -860,17 +860,33 @@ update_lap:
         ld e,c : ld d,0 : add hl,de
         ld de,BANK_PROG : add hl,de
         ld a,(hl) : cp 255 : jr z,.cross
-        ld b,a                                      ; B = progress
-        ld hl,(meta_ptr) : ld de,8 : add hl,de : ld d,(hl)   ; D = dmax
-        ld a,d : srl a : srl a : ld e,a
-        ld a,d : sub e : ld d,a                     ; D = 3/4 dmax
-        ld a,(lastp) : cp d : jr c,.store
-        ld a,1 : ld (lap_armed),a                   ; most of the circuit has been driven: the next crossing of the line is a lap
-.store: ld a,b : ld (lastp),a
-.cross: call line_cross : ret nc
-        ld a,(lap_armed) : or a : jp z,lap_reset    ; first crossing at the start of the race: timing restarts at the line
-        xor a : ld (lap_armed),a
+        ld (lastp),a                                ; progress (for the race order)
+.cross: call hum_chain                              ; keep the ordered-gate counter up to date
+        call line_cross : ret nc
+        ld a,(npts) : ld b,a : srl b : srl b : sub b : ld c,a    ; C = 3/4 of the gates
+        ld a,(gate) : ld b,a : xor a : ld (gate),a  ; the gates of the next lap start at the line
+        ld a,b : cp c : jp c,lap_reset              ; not driven through in order (or the start of the race): the line only restarts the timing
         jp lap_complete
+
+hum_chain:                                          ; GATE = the lane waypoint the car has reached by driving the circuit forwards (0 at the line, never wraps)
+        ld b,3
+.s:     push bc
+        ld a,(gate) : call hdist : ld c,a           ; C = distance to the current gate
+        ld a,(gate) : inc a : ld hl,npts : cp (hl) : jr nc,.pv     ; no gate after the last
+        push bc : call hdist : pop bc : cp c : jr nc,.pv
+        ld hl,gate : inc (hl) : pop bc : djnz .s : ret
+.pv:    ld a,(gate) : or a : jr z,.dn
+        dec a : push bc : call hdist : pop bc : cp c : jr nc,.dn   ; the gate behind is nearer: driving backwards
+        ld hl,gate : dec (hl) : pop bc : djnz .s : ret
+.dn:    pop bc : ret
+hdist:                                              ; A = waypoint -> A = |dx| + 2|dy| from the car (saturating)
+        call wp_at
+        ld a,(car_x+1) : sub b : jr nc,.x : neg
+.x:     ld d,a
+        ld a,(car_y+1) : sub c : jr nc,.y : neg
+.y:     add a,a : jr c,.sat
+        add a,d : ret nc
+.sat:   ld a,255 : ret
 
 line_cross:                                         ; carry = the car has just crossed the drawn start line in the direction of travel
         ld a,(car_x+1) : ld l,a : ld h,0 : ld a,(sl_cx) : ld e,a : ld d,0 : or a : sbc hl,de : ld (lc_u),hl
@@ -1345,8 +1361,6 @@ mus_pg:     db MUS_PG
 mus_ptr:    dw MUS_WIN
 mus_i:      db 0
 mus_ch:     db 0                                            ; which AY chip (0-2) the interrupt is feeding
-            ALIGN 64
-mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip
 
 mus_resume:                                                 ; (re)start: put every register the tune owns back, then let the interrupt carry on where it was
         di
@@ -1563,7 +1577,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111906",0
+s_ver: db "26111907",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1593,6 +1607,7 @@ bst_prev:   db 0
 lap_armed:  db 0
 sl_prev:    dw -1000
 laps_done:  db 0
+gate:       db 0                                    ; ordered gates: the lane waypoint reached by driving forwards this lap
 pc_end:
 PCS         equ pc_end-pc_block
 hctx:       ds PCS*4                                ; one context per car
@@ -1604,7 +1619,6 @@ snd_skid:   db 0
 race_over:  db 0
 menu_sel:   db 0
 track_idx:  db 0
-hs_dummy:   ds 80                                       ; track 25 keeps no records: an empty table that nothing writes
 trk_max:    db 5                                    ; tracks on offer: the finished ones (1 to 5); typing DEBUG on the instructions page unlocks all 24
 prev_in:    db 0
 laps_i:     db 3
@@ -1672,13 +1686,17 @@ lap_tick:                                           ; once per frame; redraw the
         ld a,1 : ld (hud_dirty),a
 .n:     inc hl : djnz .l
         ret
-            INCLUDE "build/tracks.inc"
 code_end:
             ASSERT code_end <= $BA00                    ; the main code must stay below the IM2 vector table
             ORG $BA00
 mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
             ORG $BBBB
             JP mus_isr
+track_tab:
+            INCLUDE "build/tracks.inc"                  ; per-track meta, parked behind the IM2 table to give the code room
+hs_dummy:   ds 80                                       ; track 25 keeps no records: an empty table that nothing writes
+            ALIGN 64
+mus_sh:     ds 48                                           ; shadow of the registers the tune has written: 16 per chip (aligned so a slot never carries)
 font:       INCBIN "build/font.bin"                     ; after the IM2 table and its jump (the code had grown into $BA00 and the font sat on the vectors)
 
 ; --------------------------------------------------- track banks (16K each)

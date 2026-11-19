@@ -251,11 +251,18 @@ cpu_step:
         ld a,(ntmp) : ld (ix+6),a
 .keep:
 ; --- start/finish line: armed once the last quarter of the circuit is reached, lap counted when the line is crossed
-        ld a,(npts) : srl a : srl a : ld b,a : ld a,(npts) : sub b : ld b,a
+        ld a,(ix+32) : or a : jr nz,.p1                ; lap phase 0: after the line, wait until the lane has wrapped round to its start
+        ld a,(npts) : srl a : srl a : ld b,a : ld a,(ix+6) : cp b : jr nc,.na
+        ld (ix+32),1 : jr .na
+.p1:    cp 1 : jr nz,.p2                                ; phase 1: wait for the second half of the lane
+        ld a,(npts) : srl a : ld b,a : ld a,(ix+6) : cp b : jr c,.na
+        ld (ix+32),2 : jr .na
+.p2:    ld a,(npts) : srl a : srl a : ld b,a : ld a,(npts) : sub b : ld b,a    ; phase 2: the last quarter arms the line
         ld a,(ix+6) : cp b : jr c,.na
         ld (ix+20),1
 .na:    call cpu_swap : call line_cross : push af : call cpu_swap : pop af : jr nc,.nl2
         inc (ix+28)                                 ; crossings of the line (race order)
+        xor a : ld (ix+32),a                        ; next lap: gates start again
         ld a,(ix+20) : or a : jr z,.first
         ld (ix+20),0 : call cpu_lap : jr .nl2
 .first: xor a : ld (ix+12),a : ld (ix+13),a
