@@ -85,3 +85,53 @@ dbg_scan:
         ld a,20 : ld (txt_fg),a
         ld hl,s_dbg : ld c,21 : jp print_cen
 s_dbg:  db "DEBUG: ALL 25 TRACKS UNLOCKED",0
+
+; nine level bars, one per tune channel, bottom left of the menu screens.
+; blue = AY 1 (A B C), green = AY 2, red = AY 3; a bar is as tall as the channel's volume (0-15)
+VZ_Y        equ 159                                         ; bars' baseline row = bottom of the START GAME line
+vz_i:       db 0
+vz_v:       db 0
+vz_off:     db 8,9,10, 24,25,26, 40,41,42                   ; the channel's volume register in mus_sh
+vz_x:       db 2,7,12, 19,24,29, 36,41,46
+vz_c:       db 16,16,16, 20,20,20, 24,24,24
+mus_viz:
+        xor a : ld (vz_i),a
+.l:     ld a,(vz_i) : ld e,a : ld d,0
+        ld hl,vz_off : add hl,de : ld a,(hl) : ld hl,mus_sh : add a,l : ld l,a
+        ld a,(hl) : and 15 : ld (vz_v),a
+        ld hl,vz_x : add hl,de : ld a,(hl) : ld (fr_x),a
+        ld a,VZ_Y : ld (fr_y),a : ld a,4 : ld (fr_w),a : ld a,16 : ld (fr_h),a : xor a : ld (fr_c),a : call fill_rect
+        ld a,(vz_i) : ld e,a : ld d,0
+        ld a,(vz_v) : or a : jr z,.bl
+        ld b,a : ld a,VZ_Y+16 : sub b : ld (fr_y),a : ld a,b : ld (fr_h),a
+        ld hl,vz_c : add hl,de : ld a,(hl) : ld (fr_c),a : ld a,4 : ld (fr_w),a : call fill_rect
+        ld a,(vz_i) : ld e,a : ld d,0
+.bl:    ld hl,vz_x : add hl,de : ld a,(hl) : ld (fr_x),a
+        ld a,VZ_Y+16 : ld (fr_y),a : ld a,1 : ld (fr_h),a : ld a,5 : ld (fr_c),a : ld a,4 : ld (fr_w),a : call fill_rect
+        ld a,(vz_i) : inc a : ld (vz_i),a : cp 9 : jp nz,.l
+        ret
+
+
+; the big stock car (menu screens, bottom right): picture from build/bigcar.bin = w,h then one byte per pixel (0 clear, 1-4 body shades, 5-8 fixed)
+VC_X        equ 210
+VC_Y        equ 149
+vc_lut:     ds 9
+vc_w:       db 0
+vc_h:       db 0
+vc_y:       db 0
+pg_car:     ld a,(vz_car) : and 3 : add a,a : add a,a : add a,15 : ld c,a            ; blue, green, red, yellow in turn
+            ld hl,vc_lut : xor a : ld (hl),a : inc hl
+            ld a,c : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl
+            ld a,8 : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a : inc hl : inc a : ld (hl),a
+            exx : ld hl,vc_lut : exx
+            ld hl,bigcar : ld a,(hl) : ld (vc_w),a : inc hl : ld a,(hl) : ld (vc_h),a : inc hl
+            ld a,VC_Y : ld (vc_y),a
+.row:       ld a,(vc_y) : ld e,VC_X : call l2_row_addr
+            ld a,(vc_w) : ld b,a
+.px:        ld a,(hl) : inc hl : or a : jr z,.sk
+            exx : ld c,a : ld b,0 : push hl : add hl,bc : ld a,(hl) : pop hl : exx : ld (de),a
+.sk:        inc e : djnz .px
+            ld a,(vc_y) : inc a : ld (vc_y),a
+            ld a,(vc_h) : dec a : ld (vc_h),a : jr nz,.row
+            ret
+bigcar:     INCBIN "build/bigcar.bin"

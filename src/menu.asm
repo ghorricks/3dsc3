@@ -64,7 +64,8 @@ menu_ukey:                                          ; U: check the server for a 
 menu_change:                                        ; E = row, D = +1 / -1
         ld a,e : cp 4 : jr nc,.o
         ld (mc_i),a : ld c,a : ld b,0 : ld hl,ctl : add hl,bc : ld a,(hl)
-.st:    ld b,8 : call wrapadd : cp 6 : jr nc,.ok          ; COMPUTER / UNWANTED may repeat, a controller only once
+.st:    ld b,8 : call wrapadd : cp 4 : jr nz,.nk : call wrapadd      ; CURSOR is no longer offered: step over it
+.nk:    cp 6 : jr nc,.ok          ; COMPUTER / UNWANTED may repeat, a controller only once
         ld c,a : ld hl,ctl : ld b,4 : ld e,0
 .ck:    ld a,(mc_i) : cp e : jr z,.sk
         ld a,(hl) : cp c : jr z,.taken

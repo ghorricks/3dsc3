@@ -18,11 +18,7 @@ hleg(Y[1],XR,XC); vleg(XC,Y[1],Y[2])
 hleg(Y[2],XC,XR); vleg(XR,Y[2],Y[3])
 hleg(Y[3],XR,XL); vleg(XL,Y[3],Y[0])
 # chicane teeth cut out of the lanes: (x0,y0,x1,y1) inclusive
-D=6                                    # tooth depth (the gap left in a lane is then 18)
-TEETH=[(190,Y[0]-hw,202,Y[0]-hw+D),(140,Y[0]+hw-D,152,Y[0]+hw),       # leg 1: outer wall, then the slab
-       (190,Y[1]-hw,202,Y[1]-hw+D),(120,Y[1]+hw-D,132,Y[1]+hw),       # leg 2
-       (140,Y[2]-hw,152,Y[2]-hw+D),(190,Y[2]+hw-D,202,Y[2]+hw),       # leg 3
-       (90,Y[3]-hw,102,Y[3]-hw+D),(170,Y[3]+hw-D,182,Y[3]+hw)]        # leg 4
+TEETH=[]                               # no teeth: the straights stay clear
 for x0,y0,x1,y1 in TEETH: reg[y0:y1+1,x0:x1+1]=False
 er=np.zeros_like(reg); er[1:-1,1:-1]=reg[1:-1,1:-1]&reg[:-2,1:-1]&reg[2:,1:-1]&reg[1:-1,:-2]&reg[1:-1,2:]
 m=reg&~er                                  # 1-px outline

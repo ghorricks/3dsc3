@@ -8,6 +8,7 @@ sys.path.insert(0,"/home/claude/stockcar/tools")
 from clean import *
 import clean as C
 B="/home/claude/stockcar/build/"; CELL=4; CW,CH=64,48
+VEC={11}
 EXACT=set(range(1,26))
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
@@ -16,14 +17,14 @@ NH=32
 HEAD=[(math.cos(a*2*math.pi/NH),math.sin(a*2*math.pi/NH)*0.5) for a in range(NH)]   # iso: y squashed
 def c332(r,g,b): return ((int(r)>>5)<<5)|((int(g)>>5)<<2)|(int(b)>>6)
 ZXRGB=[(0,0,0),(0,0,255),(255,0,0),(255,0,255),(0,255,0),(0,255,255),(255,255,0),(255,255,255)]
-SURF={"tarmac":0x49,"sand":0xF9,"gravel":0xB6,"dirt":0x8D}
+SURF={"tarmac":0x49,"sand":0xB4,"gravel":0xB6,"dirt":0x8D}
 SURFACE=["tarmac","tarmac","gravel","tarmac","dirt","tarmac","sand","tarmac",
          "gravel","tarmac","sand","dirt","tarmac","gravel","tarmac","dirt",
          "tarmac","sand","gravel","dirt","tarmac","gravel","sand","tarmac","tarmac"]   # DEFAULT GUESS - edit me
-SURFRGB={0x49:(70,70,70),0xF9:(230,200,100),0xB6:(180,180,180),0x8D:(140,90,40)}
+SURFRGB={0x49:(70,70,70),0xB4:(182,182,0),0xB6:(180,180,180),0x8D:(140,90,40)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
 TWOLEG={20:(177,180)}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
-VIA={16:[(38,85),(21,66),(36,44),(68,31),(105,27),(136,42),(174,37),(206,50),(231,67),(214,89),(230,110),(216,130),(187,146),(159,161),(128,175),(89,173),(59,159),(30,152),(17,138),(24,124),(42,123),(62,130),(95,136),(125,141),(150,130),(172,112),(160,104),(148,104),(135,107),(110,103),(92,101)],23:[(150,34),(196,57),(208,100),(221,124),(233,150),(216,164),(175,167),(127,171),(60,152),(35,110),(25,72),(50,48),(80,44)],11:[(35,110),(125,100),(225,90),(150,40),(120,22),(55,16),(8,40),(25,57),(60,65),(85,68),(104,69),(113,72),(122,79),(135,95),(205,101),(215,108),(150,108),(134,122),(160,138),(215,142),(226,158),(204,176)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
+VIA={16:[(38,85),(21,66),(36,44),(68,31),(105,27),(136,42),(174,37),(206,50),(231,67),(214,89),(230,110),(216,130),(187,146),(159,161),(128,175),(89,173),(59,159),(30,152),(17,138),(24,124),(42,123),(62,130),(95,136),(125,141),(150,130),(172,112),(160,104),(148,104),(135,107),(110,103),(92,101)],23:[(150,34),(196,57),(208,100),(221,124),(233,150),(216,164),(175,167),(127,171),(60,152),(35,110),(25,72),(50,48),(80,44)],11:[(150,177),(100,160),(60,140),(37,125),(32,108),(37,100),(80,100),(127,98),(180,99),(218,99),(224,90),(200,70),(150,45),(112,23),(60,23),(35,30),(30,45),(40,58),(80,61),(112,61),(120,80),(127,98),(135,120),(143,138),(190,138),(215,145),(224,155),(215,172),(200,177)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
 def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     """lane centreline = least-cost route start -> far end of the lap, cost grows near walls; sampled every ~6 px, smoothed"""
     from skimage.graph import route_through_array
@@ -85,6 +86,9 @@ for n in range(1,26):
             np.save(B+f'base{n}.npy',base)
             from fenceg import straighten,EDITS
             base=EDITS[n](straighten(base)); ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
+        if n in VEC:                          # vectorised from the faithful wall mask (tools/vecfence.py)
+            from vecfence import vec_base
+            base=vec_base(np.load(B+f'keep{n}.npy') if False else m,tuple(info[str(n)]['start']))[0]; ground,k,how=ground_k(base,tuple(info[str(n)]['start']))
         if n==25:                             # designed here (tools/track25.py): the fence is already exact
             base=np.load(B+'fence25.npy'); ground,k,how=ground_k(base,tuple(info['25']['start']))
         if n in (4,5,6):                      # tracks 4, 5, 6: clean straight fences fitted to the original
@@ -191,7 +195,7 @@ for n in range(1,26):
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
     if os.path.exists(B+f'tex{n}.npy'): _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
     if 7<=n<=25: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
-    wc=ZXRGB[info[str(n)]["wall_colour"]]
+    wc=ZXRGB[7]                                                    # every fence is white, as on track 1 (the Spectrum original needed different colours)
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
     _lab,_nl=ndi.label(~solid)                                  # start must lie in the biggest drivable region
@@ -296,6 +300,8 @@ for n in range(1,26):
         if best_b is None or sc<best_b[0]: best_b=(sc,bc,br)
     _,bcol,brow=best_b
     # ---- bank: base plane | ground plane | progress map
+    _lab,_=ndi.label(~solid); _comp=_lab==_lab[sy,sx]               # only the drivable region is road: islands and the outside stay grass (with trees)
+    ground=ndi.binary_dilation(_comp,iterations=1)&ground
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
     px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=25 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
@@ -316,7 +322,7 @@ for n in range(1,26):
 with open(B+"tracks.inc","w") as f:
     f.write("; per track (12 bytes): startx,starty,head,lo,mid,hi,post,road,dmax,boardcol,boardrow,0\ntrack_meta:\n")
     for i,t in enumerate(meta): f.write("    db "+",".join(map(str,t))+f"  ; track {i+1}\n")
-sheet=Image.new("RGB",(260*6+28,194*4+20),(40,40,40))
+sheet=Image.new("RGB",(260*6+28,194*5+20),(40,40,40))
 for i,pv in enumerate(PREV): sheet.paste(Image.fromarray(pv),(4+(i%6)*260,4+(i//6)*194))
 sheet.save(B+"preview_filled.png")
 with open("/home/claude/stockcar/src/trackdata.asm","w") as f:
@@ -370,6 +376,14 @@ def car_patterns():
         draw_box((-6,6,2.6,0.8,3.2),"body")
         draw_box((-3.8,1.8,2.0,3.2,5.4),"cabin")
         arr=np.array(im); px=np.zeros((16,16),np.uint8)
+        if h==14:                                                               # the big car for the menu screens: same model, 3x the resolution, heading left and slightly down
+            f=2; nn=16*S//f; bg=np.zeros((nn,nn),np.uint8)
+            for y in range(nn):
+                for x in range(nn):
+                    cnt=np.bincount(arr[y*f:(y+1)*f,x*f:(x+1)*f].ravel(),minlength=9)
+                    if cnt[1:].sum()>=f*f*0.5: bg[y,x]=cnt[1:].argmax()+1
+            yy,xx=np.nonzero(bg); bg=bg[yy.min():yy.max()+1,xx.min():xx.max()+1]
+            global BIGCAR; BIGCAR=bytes([bg.shape[1],bg.shape[0]])+bg.tobytes()
         for y in range(16):
             for x in range(16):
                 cnt=np.bincount(arr[y*S:(y+1)*S,x*S:(x+1)*S].ravel(),minlength=9)
@@ -384,7 +398,7 @@ def car_patterns():
                 if 0<=X<16 and 0<=Y<16: px[Y,X]=col_
         out+=bytes(px[5:15].flatten().tolist())            # only rows 5..14 ever contain car pixels
     return bytes((out[i]<<4)|out[i+1] for i in range(0,len(out),2))   # two pixels per byte (values 0..8): 80 bytes per heading
-cars=car_patterns(); open(B+"cars.bin","wb").write(cars)
+cars=car_patterns(); open(B+"cars.bin","wb").write(cars); open(B+"bigcar.bin","wb").write(BIGCAR)
 # contact sheet of the car model (8x zoom), blue
 shade=[(0,0,0),(120,160,255),(70,110,230),(30,60,150),(50,80,190),(10,20,40),(40,40,40),(255,255,120),(255,60,60)]
 cs=Image.new("RGB",(16*8*8,16*8*4),(70,110,70))
