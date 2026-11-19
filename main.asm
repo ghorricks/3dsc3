@@ -1182,7 +1182,7 @@ draw_startline:
         ld hl,hcos5 : ld (slc_p),hl : ld hl,hsin5 : ld (sls_p),hl      ; tracks 5, 6: fences at -14.8 / 75.2 degrees
         ld a,31 : ld (sl_h),a
 .std:
-        ld a,(track_idx) : sub 7 : cp 3 : jr nc,.nf          ; tracks 8, 9, 10: the lane runs along a screen axis
+        ld a,(track_idx) : sub 7 : cp 6 : jr nc,.nf          ; tracks 8, 9, 10: the lane runs along a screen axis
         ld e,a : ld d,0 : ld hl,slh_t : add hl,de : ld a,(hl) : ld (sl_h),a
 .nf:
         ld a,$80 : ld (sl_x),a : ld (sl_y),a
@@ -1197,7 +1197,7 @@ draw_startline:
         ld a,(track_idx) : sub 4 : cp 3 : jr nc,.nl5
         ld a,4 : ld (sl_ax),a : ld a,-1 : ld (sl_ay),a : ld hl,290 : ld (sl_lim),hl
 .nl5:
-        ld a,(track_idx) : sub 7 : cp 3 : jr nc,.nl8
+        ld a,(track_idx) : sub 7 : cp 6 : jr nc,.nl8
         ld e,a : ld d,0 : add a,a : add a,e : ld e,a : ld hl,slax_t : add hl,de      ; 3 bytes a track: ax, ay, limit
         ld a,(hl) : ld (sl_ax),a : inc hl : ld a,(hl) : ld (sl_ay),a : inc hl : ld a,(hl) : ld l,a : ld h,0 : ld (sl_lim),hl
 .nl8:
@@ -1233,8 +1233,8 @@ sl_px:                                              ; plot sl_col at (sl_qx,sl_q
         ret
 sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3, -8,0,1,3, -9,0,1,3
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
-slh_t:  db 0,24,16                                  ; start-line heading: tracks 8 (east), 9 (north), 10 (west)
-slax_t: db 1,0,100, 0,-1,50, -1,0,100
+slh_t:  db 0,24,16,16,0,0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
+slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1543,7 +1543,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111901",0
+s_ver: db "26111902",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

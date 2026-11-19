@@ -65,5 +65,13 @@ def edit9(b):
 def edit7(b):
     _line(b,[(82,114),(104,163)])
     return dropsmall(b)
+def edit14(b,h=9):
+    B=np.load('/home/claude/stockcar/build/plat14.npy'); F=B.copy()
+    for t in range(1,h+1): F&=np.roll(B,t,axis=0)       # footprint: wall bands rise h px above the base line
+    edge=F&~ndi.binary_erosion(F,structure=np.ones((3,3)))
+    return dropsmall(straighten(edge,eps=2.0) | b)
+def edit13(b):
+    _line(b,[(77,15),(214,15),(232,19),(246,26),(254,36)]); _line(b,[(30,42),(32,38),(34,34)])
+    return dropsmall(b)
 def edit_n(b): return dropsmall(b)
-EDITS={8:edit8,9:edit9,7:edit7,10:edit_n}
+EDITS={8:edit8,9:edit9,7:edit7,10:edit_n,11:edit_n,12:edit_n,13:edit13,14:edit14}

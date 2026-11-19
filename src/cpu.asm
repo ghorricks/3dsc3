@@ -38,7 +38,7 @@ init_cpu:                                           ; set up the four cars from 
         cp 7 : jr nc,.md
         ld b,1 : cp 6 : jr c,.md
         ld b,2
-        ld a,(track_idx) : cp 10 : jr c,.md           ; lane paths exist for tracks 1 to 10
+        ld a,(track_idx) : cp 14 : jr c,.md           ; lane paths exist for tracks 1 to 14
         ld b,0                                        ; no lane path on this track yet: the computer sits out
 .md:    ld (ix+23),b
         ld (ix+14),$0F : ld (ix+15),$27 : ld (ix+18),$18 : ld (ix+19),$FC     ; best 99.9, line distance far behind
@@ -143,7 +143,7 @@ draw_grid:                                          ; a "[" slot marking behind 
         ld a,c : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld a,(hl)
         cp 7 : jp nc,.nx                              ; UNWANTED: no slot
         cp 6 : jr c,.ok
-        ld a,(track_idx) : cp 10 : jp nc,.nx          ; computer cars only race on tracks 1 to 10 for now
+        ld a,(track_idx) : cp 14 : jp nc,.nx          ; computer cars only race on tracks 1 to 14 for now
 .ok:    call grid_calc
         ld a,(g_x) : ld (sl_x+1),a : ld a,(g_y) : ld (sl_y+1),a : ld a,$80 : ld (sl_x),a : ld (sl_y),a
         ld a,(sl_h) : add a,16 : and 31 : call sl_vec
