@@ -390,6 +390,8 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
         ld a,e : nextreg $44,a : nextreg $44,1
         nextreg REG_PAL_IDX,12
         ld a,e : nextreg $44,a : nextreg $44,0
+        nextreg REG_PAL_IDX,44                      ; dirt speckle shades: dark, light, mid-dark
+        nextreg REG_PAL_VAL8,$44 : nextreg REG_PAL_VAL8,$AD : nextreg REG_PAL_VAL8,$64
         nextreg REG_PAL_IDX,5
         ld a,b : nextreg REG_PAL_VAL8,a
         ld a,c : nextreg REG_PAL_VAL8,a
@@ -447,10 +449,13 @@ render_track:
         ld a,ixh : and 2 : jr nz,.road
         ld a,(cur_y) : cp 9 : ld a,0 : jr c,.put    ; HUD strip stays black
         ld a,GRASS : jr .put                        ; grass outside the fence
-.road:  ld a,2                                      ; solid road colour (no racing-line checkerboard)
+.road:  ld a,(cur_y) : ld ixh,a : add a,a : add a,a : add a,ixh : xor l : ld ixh,a   ; dirt texture: scattered specks (pseudo-random per pixel)
+        rlca : rlca : rlca : add a,ixh : ld ixh,a : rrca : rrca : xor l : add a,ixh : ld ixh,a : rlca : xor ixh : and 15
+        cp 3 : ld a,2 : jr nc,.put
+        ld a,(cur_y) : xor l : and 3 : add a,44 : cp 47 : jr c,.put : ld a,45
 .put:   ld (de),a : inc de : inc l
-        dec ixl : jr nz,.bit
-        ld a,(bcnt) : dec a : ld (bcnt),a : jr nz,.byte
+        dec ixl : jp nz,.bit
+        ld a,(bcnt) : dec a : ld (bcnt),a : jp nz,.byte
         jr .next
 .blank: xor a : ld (de),a : ld h,d : ld l,e : inc de : ld bc,255 : ldir
 .next:  ld a,(cur_y) : or a : jr z,.done
@@ -1600,7 +1605,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111930",0
+s_ver: db "26111931",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
