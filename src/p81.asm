@@ -151,7 +151,7 @@ ty:         db 0
 tk:         db 0
 pg_mhead:   call init_hw                                     ; game palette back (the title picture sets its own)
             ld a,3 : ld (txt_fg),a
-            ld b,7 : ld c,3 : ld hl,s_by : call print_at
+            call by_draw                                     ; By Gavin Horricks (mixed case strip, one character right of the old centring)
             ld a,3 : ld (txt_fg),a                           ; bottom centre: VERSION : build
             ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
             ld b,17 : ld c,23 : ld hl,s_ver : call print_at
@@ -205,3 +205,18 @@ lz_dec:     ld ixl,$80                                        ; bit buffer empty
 .gb:        ld a,ixl : add a,a : jr nz,.g1
             ld a,(hl) : inc hl : rla
 .g1:        ld ixl,a : ret
+
+by_draw:                                                     ; 17 cells x 8 rows at x=64, y=24, white
+            ld hl,by_bmp : xor a : ld (by_r),a
+.row:       push hl
+            ld a,(by_r) : add a,24 : ld e,64 : call l2_row_addr
+            pop hl : ld b,17
+.byte:      ld c,(hl) : inc hl : push bc : ld b,8
+.bit:       rl c : jr nc,.sk
+            ld a,3 : ld (de),a
+.sk:        inc e : djnz .bit
+            pop bc : djnz .byte
+            ld a,(by_r) : inc a : ld (by_r),a : cp 8 : jr c,.row
+            ret
+by_r:       db 0
+by_bmp:     INCBIN "build/byline.bin"
