@@ -265,12 +265,10 @@ pg_view:
         ld a,3 : ld (txt_fg),a : ld b,6 : ld c,0 : call print_at
         ld a,(track_idx) : inc a : call print_dec2
         ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,0 : ld c,1 : call print_at          ; PRESS LEFT/RIGHT <LOCAL> ONLINE: names in green, the one shown has white < > around it
-        ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld b,18 : ld c,1 : call print_at
-        ld hl,s_sw4 : ld b,25 : ld c,1 : call print_at
-        ld a,3 : ld (txt_fg),a
-        ld a,(hv_mode) : or a : ld b,17 : ld e,23 : jr z,.mk
-        ld b,24 : ld e,31
-.mk:    ld hl,s_lt : ld c,1 : push de : call print_at
+        ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld e,23 : ld a,(hv_mode) : or a : jr z,.nm   ; only the table being shown: <LOCAL> or <ONLINE>
+        ld hl,s_sw4 : ld e,24
+.nm:    push de : ld b,18 : ld c,1 : call print_at
+        ld a,3 : ld (txt_fg),a : ld hl,s_lt : ld b,17 : ld c,1 : call print_at
         pop de : ld b,e : ld hl,s_gt : ld c,1 : call print_at
         ld a,(hv_mode) : or a : jr z,.loc
         call net_fetch                              ; HL = this track's online records, A = how many (0 when the server can't be reached)
