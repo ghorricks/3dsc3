@@ -1576,7 +1576,9 @@ sound_update0:                                      ; lead human car: engine not
         INCLUDE "src/input.asm"
         INCLUDE "src/menu.asm"
 HS_PG       equ 80
-hs_on:  nextreg REG_MMU7,HS_PG                      ; best-lap page (code and tables) into $E000
+HS_PGB      equ 93
+hs_on:  nextreg REG_MMU7,HS_PG                      ; best-lap page (tables and online code) into $E000
+        nextreg REG_MMU6,HS_PGB                     ; and the second page (name entry, panels, race-end choice) into $C000
         ret
 hs_off: jp map_track                                ; slots 6/7 back to the current track
 hs_init:        call hs_on : call pg_init : jp hs_off
@@ -1628,7 +1630,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26111942",0
+s_ver: db "26112001",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1767,9 +1769,13 @@ font:       INCBIN "build/font.bin"                     ; after the IM2 table an
 
 ; --- best laps, file access and online scores live in the high-score page, which is mapped at $E000 while they run
             MMU 7, HS_PG
-            ORG $E7F0                               ; the table (2000 bytes) + names + format marker end at $E7E4
+            ORG $EFC0                               ; the table (25 x 20 x 8 = 4000 bytes) + names + format marker end at $EFB4
             INCLUDE "src/hiscore.asm"
             ASSERT $ < $FFFF
+            MMU 6, HS_PGB
+            ORG $C000
+            INCLUDE "src/hiscore_b.asm"
+            ASSERT $ < $E000
             MMU 6, 81
             ORG $C000
             INCBIN "build/logo.bin"
