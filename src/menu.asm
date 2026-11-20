@@ -195,7 +195,6 @@ mv_mark:                                            ; selected row: "<" two colu
 
 menu_instr:    nextreg REG_MMU6,LOGO_PG : call pg_instr : jp map_track     ; the instructions screen lives in page 81, at $C000
 
-s_by:     db "BY GAVIN HORRICKS",0
 s_vlab:   db "VERSION : ",0
 s_ins0:   db "INSTRUCTIONS",0
 car_names:  dw cn1,cn2,cn3,cn4
@@ -286,7 +285,6 @@ show_results:
 rs_slot: db 0
 rs_str:  dw 0
 rs_nc:   db 0
-res_col: db 7,8,7,6
 s_pfc:    db "PRESS FIRE TO CONTINUE",0
 s_pover:  db "PRACTICE IS OVER",0
 s_rover:  db "RACE IS OVER",0

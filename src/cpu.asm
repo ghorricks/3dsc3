@@ -164,12 +164,13 @@ draw_grid:                                          ; a "[" slot marking behind 
 .nx:    pop bc : inc c : ld a,c : cp CPU_N : jp c,.k
         ret
 
-gd_seg:                                             ; B steps along the current vector, white pixels where it is clear road
+gd_seg:                                             ; B steps along the current vector, grey pixels where it is clear road and not behind a fence
 .l:     call sl_adv
         ld a,(sl_y+1) : ld d,a : ld a,(sl_x+1) : ld e,a
         ld hl,BANK_GROUND : call bitat : jr nc,.n
-        ld hl,BANK_WALL : call bitat : jr c,.n
-        ld a,(sl_x+1) : ld (sl_qx),a : ld a,(sl_y+1) : ld (sl_qy),a : ld a,40 : ld (sl_col),a                      ; light grey (fixed palette entry)
+        ld a,(sl_x+1) : ld (sl_qx),a : ld e,a : ld a,(sl_y+1) : ld (sl_qy),a
+        call fcov : jr c,.n                           ; a fence (its base line or the wall above it) hides the marking
+        ld a,40 : ld (sl_col),a                       ; light grey (fixed palette entry)
         push bc : call sl_px : pop bc
 .n:     djnz .l
         ret

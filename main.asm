@@ -110,14 +110,6 @@ silence_all:
         call ay_silence
         ld e,0 : ld a,10 : jp ay_write
 
-end_in:                                             ; NZ when Symbol Shift and Space are both down
-        ld bc,$7FFE : in a,(c) : and 3 : jr z,.y
-        xor a : ret
-.y:     call game_keys                              ; a membrane keyboard fakes Symbol Shift when Space, O and P are held: with a driving key down it is not an abort
-        jr nz,.n
-        ld a,1 : or a : ret
-.n:     xor a : ret
-
 game_keys:                                          ; NZ when any of Q A O P is down
         ld bc,$FBFE : in a,(c) : bit 0,a : jr z,.d
         ld b,$FD : in a,(c) : bit 0,a : jr z,.d
@@ -1243,6 +1235,7 @@ draw_startline:
         ld e,a : ld d,0 : ld hl,slh_t : add hl,de : ld a,(hl) : ld (sl_h),a
 .nf:
         ld a,$80 : ld (sl_x),a : ld (sl_y),a
+        ld a,(track_idx) : sub 7 : cp 1 : sbc a,a : ld (sl_sk),a     ; track 8 only
         ld a,(sl_h) : call sl_vec
         ld b,16
 .f:     call sl_adv : djnz .f
@@ -1290,9 +1283,9 @@ sl_px:                                              ; plot sl_col at (sl_qx,sl_q
         ret
 sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3, -8,0,1,3, -9,0,1,3
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
-slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 0,0, 0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
+slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
 slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
-        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100
+        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1305,19 +1298,29 @@ sl_col: db 0
 sl_plot:
         ld a,(sl_y+1) : ld (sl_py),a
         ld c,2
-.r:     ld a,(sl_x+1) : ld e,a : ld a,(sl_py) : call l2_row_addr
+.r:     ld a,(sl_x+1) : ld e,a : ld a,(sl_py) : call fcov : jr c,.nx     ; behind a fence: it hides the line
+        ld a,(sl_x+1) : ld e,a : ld a,(sl_py) : call l2_row_addr
         ld a,(sl_x+1) : srl a : ld hl,sl_py : add a,(hl) : and 1 : jr z,.blk
         ld a,3 : jr .w
 .blk:   xor a
 .w:     ld (de),a
-        ld hl,sl_py : inc (hl)
+.nx:    ld hl,sl_py : inc (hl)
         dec c : jr nz,.r
         ret
+fcov:                                               ; A = y, E = x -> carry when a fence base line lies 0..FENCE_H rows below: the fence is drawn in front of that pixel
+        push bc : ld d,a : ld b,FENCE_H+1 : ld hl,BANK_WALL
+.l:     call bitat : jr c,.r
+        inc d : djnz .l
+.r:     pop bc : ret
 sl_vec:                                             ; A = heading -> sl_dx = 2*cos (8.8), sl_dy = sin/2 on screen
         ld e,a : ld d,0
         ld hl,(slc_p) : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : add hl,hl : ld (sl_dx),hl
         ld hl,(sls_p) : add hl,de : ld a,(hl) : ld l,a : add a,a : sbc a,a : ld h,a : ld (sl_dy),hl
+        ld a,(sl_sk) : or a : ret z                         ; track 8: the cross fences lean 6 degrees: x - y/4 on every vector
+        sra h : rr l : sra h : rr l
+        ld de,(sl_dx) : ex de,hl : or a : sbc hl,de : ld (sl_dx),hl
         ret
+sl_sk:  db 0
 sl_adv:
         ld hl,(sl_x) : ld de,(sl_dx) : add hl,de : ld (sl_x),hl
         ld hl,(sl_y) : ld de,(sl_dy) : add hl,de : ld (sl_y),hl
@@ -1584,7 +1587,6 @@ hs_on:  nextreg REG_MMU7,HS_PG                      ; best-lap page (tables and 
 hs_off: jp map_track                                ; slots 6/7 back to the current track
 hs_init:        call hs_on : call pg_init : jp hs_off
 hs_view:        call hs_on : call pg_view : jp hs_off
-hs_best:        call hs_on : call pg_best : jp hs_off
 hs_names:       call hs_on : call pg_names : jp hs_off
 hs_choice:      call hs_on : call pg_choice : ld (nxt_flag),a : jp hs_off      ; map_track in hs_off clobbers A, so the answer goes to nxt_flag first
 hs_logo:        call hs_on : call pg_logo : jp hs_off
@@ -1592,7 +1594,6 @@ title_show:     nextreg REG_MMU6,LOGO_PG : call pg_title : jp map_track   ; A = 
 hs_quitq:       call hs_on : call pg_quit : ld (qt_res),a : jp hs_off
 qt_res:         db 0
 hs_ready:       call hs_on : call pg_ready : jp hs_off
-hs_pause:       call hs_on : call pg_pause : jp hs_off
 hs_pre:         call hs_on : call pg_pre : jp hs_off
 hs_binit:       call hs_on : call pg_binit : jp hs_off
 hs_bflip:       call hs_on : call pg_bflip : jp hs_off
@@ -1631,7 +1632,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112018",0
+s_ver: db "26112019",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
