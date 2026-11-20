@@ -265,7 +265,7 @@ pg_view:
         dec a : sub b : jr nc,.mx1
 .mx0:   xor a
 .mx1:   ld (hv_max),a
-        xor a : ld (sc_off),a : ld (sc_t),a : inc a : ld (sc_dir),a : ld a,100 : ld (sc_pause),a
+        xor a : ld (sc_off),a : ld (hv_sub),a : inc a : ld (sc_dir),a : ld a,100 : ld (sc_pause),a
         call hv_draw
 .dn:    ld a,(hv_n) : or a : jr nz,.pr
         ld hl,s_off : ld c,10 : call print_cen         ; online and nothing came back
@@ -291,7 +291,7 @@ pg_view:
         ret
 .sw:    ld (hv_mode),a : jp .redraw
 .ch:    ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : jp .redraw
-hv_draw:                                            ; the list window: lines sc_off.. of 2n-1 (entry k on line 2k, blank line between), hv_rows text rows from row 3
+hv_draw:                                            ; the list window: lines sc_off.. of 2n-1 (entry k on line 2k, blank line between), hv_rows text rows from row 4
         xor a : ld (fr_x),a : ld (fr_c),a : ld a,32 : ld (fr_y),a : ld a,255 : ld (fr_w),a
         ld a,(hv_rows) : add a,a : add a,a : add a,a : ld (fr_h),a : call fill_rect
         xor a : ld (hv_r),a
@@ -299,6 +299,10 @@ hv_draw:                                            ; the list window: lines sc_
         bit 0,a : jp nz,.nx
         srl a : ld (hv_i),a : ld b,a : ld a,(hv_n) : cp b : jp z,.nx : jp c,.nx
         ld a,(hv_r) : add a,4 : ld (txt_row),a
+        call hv_ent
+.nx:    ld hl,hv_r : inc (hl) : ld a,(hl) : ld hl,hv_rows : cp (hl) : jp c,.r
+        ret
+hv_ent:                                             ; entry hv_i of the table at hv_base, drawn on text row txt_row
         ld a,(hv_mode) : or a : jr nz,.nn0                ; is this one of the records just set? (local table of that track, after a race / practice)
         ld a,(hv_cont) : or a : jr z,.nn0
         ld a,(track_idx) : ld hl,nw_trk : cp (hl) : jr nz,.nn0
@@ -315,24 +319,76 @@ hv_draw:                                            ; the list window: lines sc_
         ld (hv_p),hl : ld a,' ' : call print_char
         ld a,20 : call pcol : ld (txt_fg),a          ; time in green
         ld hl,(hv_p) : ld e,(hl) : inc hl : ld d,(hl) : inc hl : inc hl : ld (hv_p),hl
-        ex de,hl : call print_tenths
-.nx:    ld hl,hv_r : inc (hl) : ld a,(hl) : ld hl,hv_rows : cp (hl) : jp c,.r
-        ret
+        ex de,hl : jp print_tenths
 hv_base: dw 0
 hv_rows: db 18
 hv_max:  db 0
 hv_r:    db 0
-sc_t:    db 0
-hv_scroll:                                          ; list longer than the window: move one line every 4 frames, wait at the top and the bottom
+hv_sub:  db 0
+hv_y:    db 0
+hv_yb:   db 0
+hv_sb:   db 18
+hv_s:    db 0
+hv_t:    db 0
+hv_d:    db 0
+
+; --- smooth scrolling: the picture of the list moves 2 pixel rows per frame inside the window (x 64-191), the line coming in is drawn first
+; in a spare strip of the clean-copy pages (y 176-183) and fed in 2 rows at a time
+hv_row:                                             ; B = source y (pages hv_sb.. through slots 2/3), C = destination y (screen pages through slots 0/1): one row of 128 bytes
+        ld a,c : rlca : rlca : and 3 : add a,a : add a,18 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a
+        ld a,c : and 63 : ld d,a : ld e,64
+        ld a,b : rlca : rlca : and 3 : add a,a : ld c,a : ld a,(hv_sb) : add a,c : nextreg REG_MMU2,a : inc a : nextreg REG_MMU3,a
+        ld a,b : and 63 : or $40 : ld h,a : ld l,64
+        ld bc,128 : ldir
+        ret
+hv_fill:                                            ; two rows from the strip: hv_s -> hv_d
+        ld a,CLEAN_PG : ld (hv_sb),a
+        ld a,(hv_s) : ld b,a : ld a,(hv_d) : ld c,a : call hv_row
+        ld a,(hv_s) : inc a : ld b,a : ld a,(hv_d) : inc a : ld c,a : call hv_row
+        ld a,18 : ld (hv_sb),a
+        ret
+hv_stage:                                           ; A = line number -> its picture in the strip (blank for the lines between entries)
+        push af
+        ld a,CLEAN_PG+4 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a
+        ld hl,$3040 : ld b,8
+.c:     push bc : push hl : ld d,h : ld e,l : inc e : ld (hl),0 : ld bc,127 : ldir : pop hl : inc h : pop bc : djnz .c
+        pop af
+        bit 0,a : ret nz
+        srl a : ld (hv_i),a : ld b,a : ld a,(hv_n) : cp b : ret z : ret c
+        ld a,CLEAN_PG : ld (pc_pg+1),a : ld a,22 : ld (txt_row),a
+        call hv_ent
+        ld a,18 : ld (pc_pg+1),a
+        ret
+hv_sf:                                              ; one 2-row step in direction sc_dir (1 = list moves up, 255 = down), phase hv_sub (0-3) of the line change
+        ld a,(hv_rows) : add a,a : add a,a : add a,a : add a,32 : ld (hv_yb),a
+        ld a,(sc_dir) : cp 1 : jr nz,.dn
+        ld a,32
+.u:     ld (hv_y),a : ld c,a : add a,2 : ld b,a : call hv_row
+        ld a,(hv_y) : inc a : ld e,a : ld a,(hv_yb) : sub 2 : ld d,a : ld a,e : cp d : jr c,.u
+        ld a,(hv_sub) : add a,a : add a,176 : ld (hv_s),a : ld a,(hv_yb) : sub 2 : ld (hv_d),a : jp hv_fill
+.dn:    ld a,(hv_yb) : dec a
+.d:     ld (hv_y),a : ld c,a : sub 2 : ld b,a : call hv_row
+        ld a,(hv_y) : dec a : cp 33 : jr nz,.d
+        ld a,(hv_sub) : add a,a : ld b,a : ld a,182 : sub b : ld (hv_s),a : ld a,32 : ld (hv_d),a : jp hv_fill
+hv_scroll:                                          ; list longer than the window: moves smoothly, waits at the top and at the bottom
         ld a,(hv_max) : or a : ret z
-        ld a,(sc_pause) : or a : jr z,.mv
+        ld a,(sc_pause) : or a : jr z,.go
         dec a : ld (sc_pause),a : ret
-.mv:    ld hl,sc_t : inc (hl) : ld a,(hl) : and 3 : ret nz
+.go:    ld hl,hv_t : inc (hl) : bit 0,(hl) : ret nz                         ; a 2-row step every second frame
+        ld a,(hv_sub) : or a : jr nz,.step
+        ld a,(sc_dir) : cp 1 : jr nz,.dn
+        ld a,(sc_off) : ld hl,hv_max : cp (hl) : jr c,.s1
+        ld a,255 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : ret            ; at the bottom: wait, then back up
+.s1:    ld hl,hv_rows : add a,(hl) : call hv_stage : jr .step                  ; line coming in at the bottom
+.dn:    ld a,(sc_off) : or a : jr nz,.s2
+        ld a,1 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : ret              ; at the top
+.s2:    dec a : call hv_stage                                                  ; line coming in at the top
+.step:  call hv_sf
+        ld a,(hv_sub) : inc a : cp 4 : jr c,.keep
         ld a,(sc_off) : ld hl,sc_dir : add a,(hl) : ld (sc_off),a
-        ld hl,hv_max : cp (hl) : jr z,.bot
-        or a : jp nz,hv_draw
-        ld a,1 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : jp hv_draw
-.bot:   ld a,255 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : jp hv_draw
+        xor a
+.keep:  ld (hv_sub),a
+        ret
 hv_sv: db 0
 hv_p:  dw 0
 hv_i:  db 0

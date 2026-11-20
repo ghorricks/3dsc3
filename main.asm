@@ -1173,7 +1173,8 @@ print_char:                                         ; A = ASCII, draws at txt_co
 .ok:    ld l,a : ld h,0 : add hl,hl : add hl,hl : add hl,hl
         ld de,font : add hl,de : push hl : pop ix
         ld a,(txt_row) : ld b,a
-        rrca : rrca : rrca : and 3 : add a,a : add a,18
+        rrca : rrca : rrca : and 3 : add a,a
+pc_pg:  add a,18                                    ; (the operand is patched to draw into the clean-copy pages)
         nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a
         ld a,b : and 7 : add a,a : add a,a : add a,a : ld d,a
         ld a,(txt_col) : add a,a : add a,a : add a,a : ld e,a
@@ -1630,7 +1631,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112005",0
+s_ver: db "26112006",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

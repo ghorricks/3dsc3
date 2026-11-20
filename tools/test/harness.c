@@ -103,7 +103,7 @@ int main(int argc,char**argv){
       if(getenv("PADRGT")&&frames>=10&&frames<40&&((frames-10)/3)%2==0&&(frames-10)%3==0+0) padval=0x01;
       if(getenv("PADRGT")&&frames==45) printf("ctl %d %d %d %d\n",rd(0,symaddr("ctl")),rd(0,symaddr("ctl")+1),rd(0,symaddr("ctl")+2),rd(0,symaddr("ctl")+3));
       if(getenv("ONL")){ int o=atoi(getenv("ONL")); if(frames>=o&&frames<=o+2) padval=0x04; if(frames>=o+20&&frames<=o+22) padval=0x01; if(frames==o+15) dump("build/online2.ppm"); if(frames==o+40) dump("build/online3.ppm"); }
-      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames==o+10) dump("build/v1.ppm"); if(frames==o+90) dump("build/v5.ppm"); if(frames==o+140) dump("build/v6.ppm"); if(frames==o+200) dump("build/v7.ppm"); if(frames>=o+12&&frames<=o+14) padval=0x01; if(frames==o+160) dump("build/v2.ppm"); if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames==o+200) dump("build/v3.ppm"); if(frames==o+260) dump("build/v4.ppm"); }
+      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames==o+10) dump("build/v1.ppm"); if(frames==o+110) dump("build/v5.ppm"); if(frames==o+113) dump("build/v6.ppm"); if(frames==o+170) dump("build/v8.ppm"); if(frames==o+200) dump("build/v7.ppm"); if(frames>=o+12&&frames<=o+14) padval=0x01; if(frames==o+160) dump("build/v2.ppm"); if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames==o+200) dump("build/v3.ppm"); if(frames==o+260) dump("build/v4.ppm"); }
       if(getenv("PADDWN")&&frames==60) dump("build/online.ppm");                       // START
       if(frames==sf+3) startedrace=1;
       int r0=sf+20;
