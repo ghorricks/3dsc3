@@ -91,7 +91,8 @@ session:
         call rank_update
         call sound_update
         call cpu_sound
-.held:  call check_end
+.held:  call snd_cdt                                ; the start chimes also play while the cars are held on the grid
+        call check_end
         ld a,(race_over) : or a : jp z,.frame
 .over:  xor a : ld (vj_on),a : call mus_resume
         call show_results
@@ -1498,7 +1499,6 @@ ay_silence:
 sound_update:
         call sound_update0
         call snd_imp
-        call snd_cdt
         jp snd_bell
 cpu_x13:ld a,(difficulty) : cp 4 : ret nz                  ; UNFAIR: the step of a computer car (DE = dx, BC = dy) x 1.3125, done in page 93
         call hs_on : call pg_x13
@@ -1635,7 +1635,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112023",0
+s_ver: db "26112024",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
