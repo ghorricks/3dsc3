@@ -39,7 +39,7 @@ int main(int argc,char**argv){
   fprintf(stderr,"loaded %d banks, PC=%02X%02X\n",nb,h[15],h[14]);
   z80 z; zz=&z; z80_init(&z); z.read_byte=rd; z.write_byte=wr; z.port_in=pin; z.port_out=pout; z.pc=h[14]|(h[15]<<8); z.sp=h[12]|(h[13]<<8);
   unsigned A_X=symaddr("car_x"),A_Y=symaddr("car_y"),A_H=symaddr("heading"),A_S=symaddr("speed"),A_LP=symaddr("lastp"),A_TI=symaddr("track_idx");
-  unsigned a_pgn=symaddr("pg_names"), a_pgc=symaddr("pg_choice"), a_rdy=symaddr("pg_ready"); int cho_hit=0;
+  unsigned a_pgn=symaddr("pg_names"), a_pgc=symaddr("pg_choice"), a_rdy=symaddr("pg_ready"); int cho_hit=0; unsigned a_ir=getenv("RACE")?symaddr("init_race"):0xFFFFF;
   int trk=argc>1?atoi(argv[1]):0; int accel_frames=argc>2?atoi(argv[2]):200; mode=argc>3?atoi(argv[3]):0; const char*shot=argc>4?argv[4]:0;
   int sx=0,sy=0,ex=0,ey=0,es=0,ehd=0,elp=0; int lastf=-1, phase=0; int startedrace=0; int lastp2=-1, barn=0, ms_done=0, updt_done=0, upd_hit=0; unsigned long guard=0;
   while(frames<4+accel_frames+40 && guard<(getenv("GUARD")?strtoul(getenv("GUARD"),0,10):900000000UL)){
@@ -77,6 +77,7 @@ int main(int argc,char**argv){
     else if(getenv("INSTR") && !getenv("DBGT") && pc==symaddr("pg_instr.w2") && !ms_done && (ms_done=1)){ dump("build/instr.ppm"); frames=4+accel_frames+40; }
     else if(getenv("BARSHOT") && pc==symaddr("ud_bar.k") && (++barn==2)){ dump("build/bar.ppm"); frames=4+accel_frames+40; }
     else if(pc==a_pgc && (cho_hit=1)&&0){}
+    else if(pc==a_ir){ wr(0,symaddr("phase"),1); }
     else if(pc==a_rdy && !getenv("READY")){ z.pc=rd(0,z.sp)|(rd(0,z.sp+1)<<8); z.sp+=2; z.cyc+=10; }
     else if(pc==a_pgn && !getenv("NAMES")){ z.pc=rd(0,z.sp)|(rd(0,z.sp+1)<<8); z.sp+=2; z.cyc+=10; }   /* skip the name entry screen unless NAMES=1 */
     else if(o0==0xED&&o1==0x91){ nreg(rd(0,pc+2),rd(0,pc+3)); z.pc+=4; z.cyc+=20; }

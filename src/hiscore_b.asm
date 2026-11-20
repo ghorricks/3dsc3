@@ -502,3 +502,50 @@ s_lbest: db "L BEST ",0
 s_obest: db "O BEST ",0
 
 
+
+; ---- start-light countdown beeps (race / practice): one 24-frame chord per light, on AY 2 and AY 3 (the tune is off during a race)
+;      red and yellow the same chord, green an octave higher; each fades out. Called once per frame while cd_t is running.
+pg_cd:  ld a,(cd_t) : dec a : ld (cd_t),a
+        ld d,0 : jr z,.v                                  ; last frame: silence
+        srl a : add a,4 : ld d,a                          ; volume 15 down to 4
+.v:     ld hl,cd_lo : ld a,(cd_n) : or a : jr z,.l
+        ld hl,cd_hi
+.l:     ld a,$FE : call .chip
+        ld a,$FD : call .chip
+        ld bc,PORT_AY_REG : ld a,$FF : out (c),a          ; the effects live on AY 1
+        ret
+.chip:  ld bc,PORT_AY_REG : out (c),a
+        ld a,7 : ld e,$38 : call ay_write                 ; three tones, no noise
+        ld ixl,0
+.ch:    ld a,ixl : add a,a : ld e,(hl) : inc hl : call ay_write
+        ld a,ixl : add a,a : inc a : ld e,(hl) : inc hl : call ay_write
+        ld a,ixl : add a,8 : ld e,d : call ay_write
+        inc ixl : ld a,ixl : cp 3 : jr c,.ch
+        ret
+cd_lo:  dw 252,168,126, 504,336,252                       ; A4 E5 A5 on AY 2, the same chord an octave lower on AY 3
+cd_hi:  dw 126,84,63, 252,168,126                         ; green: A5 E6 A6 over A4 E5 A5
+
+; ---- the final-lap bell (moved here from the main code to make room): three 12-frame rings on AY 1 channel B
+pg_bell:                                           ; ding ding ding: three 12-frame rings on channel B, each fading out (overrides the impact / tyre noise while it rings)
+        ld a,(bl_t) : or a : ret z
+        dec a : ld (bl_t),a
+        ld a,(bl_p) : ld (bl_b),a : inc a : cp 12 : jr c,.k
+        xor a
+.k:     ld (bl_p),a
+        ld a,7 : ld e,$30 : call ay_write
+        ld a,(bl_t) : and 1 : add a,a : add a,a : add a,90 : ld e,a : ld a,2 : call ay_write
+        ld a,3 : ld e,0 : call ay_write
+        ld a,(bl_b) : ld e,a : ld a,15 : sub e : ld e,a : ld a,9 : jp ay_write
+
+; ---- UNFAIR: DE = dx, BC = dy (signed 16 bit) -> both x 1.3125 (x + x/4 + x/16)
+pg_x13: push bc : ld h,d : ld l,e : call .m : ex de,hl          ; DE = dx x 1.3125
+        pop hl : push de : call .m : ld b,h : ld c,l : pop de       ; BC = dy x 1.3125
+        ret
+.m:     ld d,h : ld e,l
+        sra h : rr l : sra h : rr l                       ; x/4
+        ld b,h : ld c,l
+        add hl,de                                         ; 1.25x
+        sra b : rr c : sra b : rr c                       ; x/16
+        add hl,bc
+        ret
+hsb_end:

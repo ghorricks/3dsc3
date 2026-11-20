@@ -49,8 +49,8 @@ init_cpu:                                           ; set up the four cars from 
         ld a,c : and 3 : ld e,a : ld d,0 : ld hl,cap_adj : add hl,de : ld a,(ix+11) : add a,(hl) : ld (ix+11),a
         ld a,(track_idx) : cp 1 : jr nz,.nt2          ; track 2 is longer in the original: slower computer cars
         ld a,(ix+11) : sub 24 : ld (ix+11),a
-.nt2:   ld a,(difficulty) : cp 3 : jr nz,.nt3
-        ld (ix+11),255                                ; EXPERT: every car as fast as the player
+.nt2:   ld a,(difficulty) : cp 3 : jr c,.nt3
+        ld (ix+11),255                                ; EXPERT and UNFAIR: top speed of the player (UNFAIR then moves 1.3x as far, see cpu_x13)
 .nt3:   ld a,(ix+23) : cp 1 : jr z,.hum
         call nearest_wp : ld d,a                      ; computer car: first waypoint of its lane
         ld a,(npts) : srl a : cp d : ld a,d : jr nc,.fw
@@ -364,6 +364,7 @@ cpu_step:
         ld a,(ix+4) : call step_for
         pop af : ld (boost_t),a
         pop af : ld (speed),a
+        call cpu_x13                                 ; UNFAIR: 1.3x the player's top speed
         ld l,(ix+0) : ld h,(ix+1) : add hl,de : ld (cm_x),hl
         ld l,(ix+2) : ld h,(ix+3) : add hl,bc : ld (cm_y),hl
         ld a,(cm_y+1) : ld d,a : ld a,(cm_x+1) : ld e,a

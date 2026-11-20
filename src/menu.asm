@@ -82,7 +82,7 @@ menu_change:                                        ; E = row, D = +1 / -1
 .taken: ld a,c : jr .st
 .ok:    ld c,a : ld a,(mc_i) : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld (hl),c : ret
 .o:     jr nz,.o1
-        ld a,(difficulty) : ld b,4 : call wrapadd : ld (difficulty),a : ret
+        ld a,(difficulty) : ld b,5 : call wrapadd : ld (difficulty),a : ret
 .o1:    cp 5 : jr nz,.o2
         ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : ret
 .o2:    cp 6 : ret nz
@@ -216,11 +216,12 @@ rn1: db "       CPU",0              ; right-aligned with TRACK and LAPS
 rn2: db "     TRACK",0              ; padded so the three labels are right-aligned
 rn3: db "      LAPS",0
 rn5: db "BEST LAPS",0
-diff_names: dw d0,d1,d2,d3
+diff_names: dw d0,d1,d2,d3,d4
 d0: db "EASY  ",0
 d1: db "MEDIUM",0
 d2: db "HARD  ",0
 d3: db "EXPERT",0
+d4: db "UNFAIR",0
 
 ; ===================================================================== results after practice / race
 show_results:

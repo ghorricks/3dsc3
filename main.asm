@@ -142,7 +142,7 @@ check_end:                                          ; race: a car that has run a
 fin_n:  db 0
 
 init_race:
-        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (snd_hit),a : ld (snd_cn),a : ld (bl_done),a : ld (bl_t),a : ld (cs_k),a : ld (lt_s),a : ld (fr_cnt),a : ld (fin_n),a
+        xor a : ld (race_over),a : ld (cd_f),a : ld (gf),a : ld (snd_skid),a : ld (snd_hit),a : ld (snd_cn),a : ld (bl_done),a : ld (bl_t),a : ld (cs_k),a : ld (lt_s),a : ld (cd_t),a : ld (fr_cnt),a : ld (fin_n),a
         call silence_all
         ld hl,180 : ld (cd_s),hl
         ld hl,0 : ld (lap_show),hl : ld (lap_show+2),hl
@@ -212,12 +212,14 @@ clear_light:                                        ; put the clean track back w
         ret
 
 light_step:                                         ; one frame of the start sequence -> A = 1 while the cars are held
-        ld hl,lt_t : dec (hl) : jr nz,.r
+        ld a,(lt_t) : cp 100 : jr nz,.nb
+        xor a : call cd_go                                  ; red lights up: first beep
+.nb:    ld hl,lt_t : dec (hl) : jr nz,.r
         ld a,(lt_s) : inc a : ld (lt_s),a
         cp 2 : jr nz,.g
-        ld a,50 : ld (lt_t),a : call draw_light : jr .r
+        ld a,50 : ld (lt_t),a : call draw_light : xor a : call cd_go : jr .r        ; yellow: the same beep
 .g:     cp 3 : jr nz,.off
-        ld a,70 : ld (lt_t),a : call draw_light : jr .r
+        ld a,70 : ld (lt_t),a : call draw_light : ld a,1 : call cd_go : jr .r        ; green: the high one
 .off:   call clear_light : xor a : ld (lt_s),a : ret
 .r:     ld a,(lt_s) : cp 3 : ld a,1 : ret c
         xor a : ret
@@ -1497,7 +1499,16 @@ ay_silence:
 sound_update:
         call sound_update0
         call snd_imp
+        call snd_cdt
         jp snd_bell
+cpu_x13:ld a,(difficulty) : cp 4 : ret nz                  ; UNFAIR: the step of a computer car (DE = dx, BC = dy) x 1.3125, done in page 93
+        call hs_on : call pg_x13
+        push de : push bc : call hs_off : pop bc : pop de : ret
+snd_cdt:ld a,(cd_t) : or a : ret z                         ; start-light beep running: page 93 plays its next frame
+        call hs_on : call pg_cd : jp hs_off
+cd_go:  ld (cd_n),a : ld a,24 : ld (cd_t),a : ret          ; A = 0 low chord (red, yellow), 1 high chord (green)
+cd_t:   db 0
+cd_n:   db 0
 
 snd_impact:                                         ; any crash (fence or car): a short, quiet thud on channel B, only for a NEW contact:
         ld a,(snd_cn) : ld b,a : ld a,10 : ld (snd_cn),a      ; staying in contact (scraping a fence while accelerating) keeps re-arming the gap timer
@@ -1522,16 +1533,9 @@ bell_chk:                                           ; A = laps a car has just co
         ld a,(laps_total) : dec a : cp b : ret nz
         ld a,1 : ld (bl_done),a : ld a,36 : ld (bl_t),a : xor a : ld (bl_p),a
         ret
-snd_bell:                                           ; ding ding ding: three 12-frame rings on channel B, each fading out (overrides the impact / tyre noise while it rings)
+snd_bell:                                           ; bell running (bl_t): page 93 plays its next frame
         ld a,(bl_t) : or a : ret z
-        dec a : ld (bl_t),a
-        ld a,(bl_p) : ld (bl_b),a : inc a : cp 12 : jr c,.k
-        xor a
-.k:     ld (bl_p),a
-        ld a,7 : ld e,$30 : call ay_write
-        ld a,(bl_t) : and 1 : add a,a : add a,a : add a,90 : ld e,a : ld a,2 : call ay_write
-        ld a,3 : ld e,0 : call ay_write
-        ld a,(bl_b) : ld e,a : ld a,15 : sub e : ld e,a : ld a,9 : jp ay_write
+        call hs_on : call pg_bell : jp hs_off
 bl_t:       db 0
 bl_p:       db 0
 bl_b:       db 0
@@ -1632,7 +1636,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112020",0
+s_ver: db "26112021",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1667,7 +1671,7 @@ pc_end:
 PCS         equ pc_end-pc_block
 hctx:       ds PCS*4                                ; one context per car
 ctl:        db 0,6,6,6                              ; control choice per car: 0 KEMPSTON 1 KEMPSTON 2 2 INT2 L 3 INT2 R 4 CURSOR 5 KEYS 6 COMPUTER 7 UNWANTED
-difficulty: db 1                                    ; 0 EASY 1 MEDIUM 2 HARD 3 EXPERT
+difficulty: db 1                                    ; 0 EASY 1 MEDIUM 2 HARD 3 EXPERT 4 UNFAIR (computer cars move 1.3x as far)
 laps_total: db 6
 fr_cnt:     db 0
 snd_skid:   db 0
