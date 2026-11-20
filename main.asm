@@ -1631,7 +1631,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112016",0
+s_ver: db "26112017",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1673,7 +1673,7 @@ snd_skid:   db 0
 race_over:  db 0
 menu_sel:   db 0
 track_idx:  db 0
-trk_max:    db 13                                   ; tracks on offer: the finished ones (1 to 10); typing DEBUG on the instructions page unlocks all 25
+trk_max:    db 25                                   ; tracks on offer: all 25 (DEBUG on the instructions page is no longer needed to unlock them)
 prev_in:    db 0
 laps_i:     db 3
 txt_col:    db 0
