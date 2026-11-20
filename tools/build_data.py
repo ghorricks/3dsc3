@@ -212,8 +212,18 @@ for n in range(1,26):
                     while y<45 and base[y,x]: y+=1
                     if y-y0>=6 and not base[y0+2:y-2,max(x-1,0)].any() and not base[y0+2:y-2,x+1].any(): base[y0+1:y-1,x]=False
                 else: y+=1
+    _ed=os.path.join(os.path.dirname(os.path.abspath(__file__)),"..","track_edits",f"track{n:02d}.png")
+    _edited=os.path.exists(_ed)
+    if _edited:                              # hand-edited layout image (256x192): white = fence-base line, grey = road surface, green = outside, black = status bar rows 0-11 (kept from the computed track)
+        _im=np.array(Image.open(_ed).convert("RGB")).astype(int)
+        _pal=np.array([(0,0,0),(0,170,0),(70,70,85),(255,255,255)])
+        _cl=np.argmin(((_im[:,:,None,:]-_pal[None,None,:,:])**2).sum(3),axis=2)
+        _nb=(_cl==3); _ng=(_cl==2)
+        _nb[:12]=base[:12]; _ng[:12]=ground[:12]
+        print(f"   edited layout track{n:02d}.png: base {int(base.sum())}->{int(_nb.sum())} ground {int(ground.sum())}->{int(_ng.sum())}")
+        base=_nb; ground=_ng
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
-    if os.path.exists(B+f'tex{n}.npy'): _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
+    if os.path.exists(B+f'tex{n}.npy') and not _edited: _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
     if 7<=n<=25: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[7]                                                    # every fence is white, as on track 1 (the Spectrum original needed different colours)
     # ---- start: nearest roomy open pixel

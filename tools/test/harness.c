@@ -31,6 +31,7 @@ static void dump(const char*fn){ FILE*f=fopen(fn,"wb"); fprintf(f,"P6 256 192 25
   for(int i=0;i<256*192;i++){ uint8_t c=pal[ram[18*8192+i]]; uint8_t r=(c>>5)*255/7,g=((c>>2)&7)*255/7,b=(c&3)*255/3; fputc(r,f);fputc(g,f);fputc(b,f);} fclose(f);}
 static void pk(unsigned a,uint8_t v){ static unsigned PB=0,HC=0; if(!PB){ PB=symaddr("pc_block"); HC=symaddr("hctx"); } wr(0,a,v); wr(0,a-PB+HC,v); }
 static int cf=-1, nmf=-1;
+static unsigned static_ra=0; static uint8_t clean0[49152];
 int main(int argc,char**argv){
   FILE*f=fopen("stockcar.nex","rb"); uint8_t h[512]; fread(h,1,512,f);
   static const int order[]={5,2,0,1,3,4}; int nb=0;
@@ -62,6 +63,8 @@ int main(int argc,char**argv){
     else if(getenv("UPDT") && pc==symaddr("menu_run") && !updt_done && (updt_done=1)){ z.sp-=2; wr(0,z.sp,pc&255); wr(0,z.sp+1,pc>>8); z.pc=symaddr("hs_update"); }
     else if(getenv("UPDT") && (pc==symaddr("pg_update.k1")||pc==symaddr("ud_fail")+0*1) && !upd_hit++ ){ printf("UPDATE reached %04X frames %d\n",pc,frames); if(pc==symaddr("pg_update.k1")) frames=4+accel_frames+40; }
     else if(getenv("MUSLOG") && pc==symaddr("menu_run.loop") && frames>=atoi(getenv("MUSLOG"))){ frames=4+accel_frames+40; }
+    else if(getenv("CLEANRAW0") && pc==symaddr("render_track") && !ms_done && (ms_done=1)){ static_ra=rd(0,z.sp)|(rd(0,z.sp+1)<<8); }
+    else if(getenv("CLEANRAW0") && static_ra && pc==static_ra){ memcpy(clean0,&ram[100*8192],49152); static_ra=0; }
     else if(getenv("DUMPFF") && pc==symaddr("render_track") && !ms_done && (ms_done=1)){ for(int q=0;q<16;q++) printf("%02X ",rd(0,0xFF00+q)); printf("| pal32=%02X pal33=%02X pal44=%02X palsel=%d\n",pal[32],pal[33],pal[44],palsel); }
     else if(getenv("DTT") && pc==({static unsigned dtt=0; if(!dtt) dtt=symaddr("draw_trees"); dtt;})){ static int nn=0; if(nn++<3){ printf("go mm6=%d mm7=%d :",mmu[6],mmu[7]); for(int q=0;q<16;q++) printf(" %02X",rd(0,0xFF44+q)); printf(" | "); for(int q=0;q<16;q++) printf(" %02X",rd(0,0xFF76+q)); printf("\n"); fflush(stdout); printf("\n"); } }
     else if(getenv("DTP") && (pc==({static unsigned a1=0; if(!a1) a1=symaddr("draw_tab"); a1;}) || pc==({static unsigned a2=0; if(!a2) a2=symaddr("sl_px"); a2;}))){ static int cnt=0,calls=0; static unsigned a1=0; if(!a1) a1=symaddr("draw_tab"); if(pc==a1){ if(calls<12 && calls>0){ printf("call %d px=%d next hl=%04X\n",calls,cnt,(z.h<<8)|z.l); fflush(stdout);} calls++; cnt=0; } else cnt++; }
@@ -162,6 +165,8 @@ int main(int argc,char**argv){
       if(startedrace && frames==r0+accel_frames) { ex=ram[(4*8192)+(A_X+1-0x8000)]; ey=ram[(4*8192)+(A_Y+1-0x8000)]; es=ram[(4*8192)+(A_S-0x8000)]; ehd=ram[(4*8192)+(A_H-0x8000)]; elp=ram[(4*8192)+(A_LP-0x8000)]; }
     }
   }
+  if(getenv("CLEANRAW0")){ FILE*cf3=fopen(getenv("CLEANRAW0"),"wb"); fwrite(clean0,1,49152,cf3); fwrite(pal,1,256,cf3); fclose(cf3); }
+  if(getenv("CLEANRAW")){ FILE*cf2=fopen(getenv("CLEANRAW"),"wb"); fwrite(&ram[100*8192],1,49152,cf2); fwrite(pal,1,256,cf2); fclose(cf2); }
   if(getenv("HSD")){ for(int tr=0;tr<24;tr++){ int n=0; for(int e=0;e<10;e++){ uint8_t*q=&ram[80*8192+tr*80+e*8]; if(!(q[5]==0xE7&&q[6]==3)) n++; } if(n) printf("track %d: %d real\n",tr+1,n); } uint8_t*q=&ram[80*8192+4*80]; for(int i=0;i<24;i++) printf("%02X ",q[i]); printf("\n"); }
   if(getenv("HS")){ for(int e=0;e<3;e++){ uint8_t*q=&ram[80*8192+e*8]; printf("hs[%d] %.5s %d\n",e,q,q[5]|(q[6]<<8)); } }
   if(getenv("PROF")){ FILE*pf=fopen("build/prof.txt","w"); for(int i=0;i<65536;i++) if(prof[i]) fprintf(pf,"%04X %lu\n",i,prof[i]); fclose(pf); }
