@@ -264,12 +264,14 @@ pg_view:
         ld hl,s_hl
         ld a,3 : ld (txt_fg),a : ld b,6 : ld c,0 : call print_at
         ld a,(track_idx) : inc a : call print_dec2
-        ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,0 : ld c,1 : call print_at          ; PRESS LEFT/RIGHT <LOCAL> ONLINE: names in green, the one shown has white < > around it
-        ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld e,23 : ld a,(hv_mode) : or a : jr z,.nm   ; only the table being shown: <LOCAL> or <ONLINE>
-        ld hl,s_sw4 : ld e,24
-.nm:    push de : ld b,18 : ld c,1 : call print_at
-        ld a,3 : ld (txt_fg),a : ld hl,s_lt : ld b,17 : ld c,1 : call print_at
-        pop de : ld b,e : ld hl,s_gt : ld c,1 : call print_at
+        ld a,(hv_mode) : or a : ld d,4 : jr z,.c0                  ; PRESS LEFT/RIGHT <LOCAL> / <ONLINE>, centred on the screen: D = first column
+        ld d,3
+.c0:    ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,d : ld c,1 : push de : call print_at
+        pop de : ld a,d : add a,17 : ld b,a : ld hl,s_lt : ld c,1 : push de : call print_at
+        pop de : ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld e,5 : ld a,(hv_mode) : or a : jr z,.nm   ; names in green, only the table being shown
+        ld hl,s_sw4 : ld e,6
+.nm:    ld a,d : add a,18 : ld b,a : ld c,1 : push de : call print_at
+        pop de : ld a,d : add a,18 : add a,e : ld b,a : ld a,3 : ld (txt_fg),a : ld hl,s_gt : ld c,1 : call print_at
         ld a,(hv_mode) : or a : jr z,.loc
         call net_fetch                              ; HL = this track's online records, A = how many (0 when the server can't be reached)
         jr .go
