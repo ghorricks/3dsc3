@@ -269,7 +269,10 @@ pg_view:
         xor a : ld (sc_off),a : ld (hv_sub),a : inc a : ld (sc_dir),a : ld a,100 : ld (sc_pause),a
         call hv_draw
 .dn:    ld a,(hv_n) : or a : jr nz,.pr
-        ld hl,s_off : ld c,10 : call print_cen         ; online and nothing came back
+        ld a,(oc_ok) : or a : jr z,.srv
+        ld hl,s_nonet : ld c,10 : call print_cen       ; the server answered: nobody has posted a time for this track yet
+        jr .pr
+.srv:   ld hl,s_off : ld c,10 : call print_cen         ; online and nothing came back
         call net_show
 .pr:    ld a,(hv_cont) : cp 2 : jr nz,.pr1
         ld a,(hv_sv) : ld (track_idx),a : ret
@@ -405,6 +408,7 @@ s_sw4: db "ONLINE",0
 s_lt:  db "<",0
 s_gt:  db ">",0
 s_off: db "SERVER NOT AVAILABLE",0
+s_nonet: db "NO ONLINE TIMES YET",0
 s_ne:  db "NET ERROR  STAGE ",0
 net_show:                                           ; the reason a call failed: stage and error code (hex)
         ld a,3 : ld (txt_fg),a : ld a,3 : ld (txt_col),a : ld a,13 : ld (txt_row),a
