@@ -185,8 +185,6 @@ s_pz2:  db "PRESS BREAK TO CONTINUE",0
 pg_choice:
         xor a : ld (ch_sel),a
 .setup: ld a,(sc_on) : or a : jr z,.nsc
-        call copy_l2_to_clean                           ; the table as it is now: the scroll below redraws it from this copy
-        xor a : ld (sc_off),a : ld a,2 : ld (sc_dir),a : ld a,50 : ld (sc_pause),a
 .nsc:
         ld a,54 : ld (fr_x),a : ld a,153 : ld (fr_y),a : ld a,148 : ld (fr_w),a : ld a,34 : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
         ld a,56 : ld (fr_x),a : ld a,155 : ld (fr_y),a : ld a,144 : ld (fr_w),a : ld a,30 : ld (fr_h),a : xor a : ld (fr_c),a : call fill_rect
@@ -216,29 +214,12 @@ pg_choice:
 s_blk2 equ s_blk3+6                                  ; 14 spaces: the tail of the 20
 sc_on:    db 0
 sc_off:   db 0
-sc_dir:   db 2
+sc_dir:   db 1
 sc_pause: db 0
 sc_y:     db 0
-sc_step:                                        ; the high-score list moves up (so entry 10 shows above the panel), waits a second, moves back, waits ...
+sc_step:                                        ; after a race the list scrolls behind the panel
         ld a,(sc_on) : or a : ret z
-        ld a,(sc_pause) : or a : jr z,.mv
-        dec a : ld (sc_pause),a : ret
-.mv:    ld a,(sc_off) : ld hl,sc_dir : add a,(hl) : ld (sc_off),a
-        jr z,.top
-        cp 48 : jr nz,.dr
-        ld a,254 : ld (sc_dir),a : ld a,50 : ld (sc_pause),a : jr .dr
-.top:   ld a,2 : ld (sc_dir),a : ld a,50 : ld (sc_pause),a
-.dr:    ld a,24 : ld (sc_y),a
-.row:   ld a,(sc_y) : ld b,a
-        rlca : rlca : and 3 : add a,a : add a,18 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a
-        ld a,b : and 63 : ld d,a : ld e,0
-        ld a,(sc_off) : add a,b : cp 192 : jr nc,.blk
-        ld c,a : rlca : rlca : and 3 : add a,a : add a,CLEAN_PG : nextreg REG_MMU2,a : inc a : nextreg REG_MMU3,a
-        ld a,c : and 63 : or $40 : ld h,a : ld l,0
-        ld bc,256 : ldir : jr .nx
-.blk:   ld h,d : ld l,e : ld (hl),0 : inc de : ld bc,255 : ldir
-.nx:    ld hl,sc_y : inc (hl) : ld a,(hl) : cp 153 : jr c,.row
-        ret
+        jp hv_scroll
 ch_sel: db 0
 ch_i:   db 0
 ch_pv:  db 0
@@ -266,37 +247,26 @@ pg_view:
         ld a,(track_idx) : inc a : call print_dec2
         ld a,(hv_mode) : or a : ld d,4 : jr z,.c0                  ; PRESS LEFT/RIGHT <LOCAL> / <ONLINE>, centred on the screen: D = first column
         ld d,3
-.c0:    ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,d : ld c,1 : push de : call print_at
-        pop de : ld a,d : add a,17 : ld b,a : ld hl,s_lt : ld c,1 : push de : call print_at
+.c0:    ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,d : ld c,2 : push de : call print_at
+        pop de : ld a,d : add a,17 : ld b,a : ld hl,s_lt : ld c,2 : push de : call print_at
         pop de : ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld e,5 : ld a,(hv_mode) : or a : jr z,.nm   ; names in green, only the table being shown
         ld hl,s_sw4 : ld e,6
-.nm:    ld a,d : add a,18 : ld b,a : ld c,1 : push de : call print_at
-        pop de : ld a,d : add a,18 : add a,e : ld b,a : ld a,3 : ld (txt_fg),a : ld hl,s_gt : ld c,1 : call print_at
+.nm:    ld a,d : add a,18 : ld b,a : ld c,2 : push de : call print_at
+        pop de : ld a,d : add a,18 : add a,e : ld b,a : ld a,3 : ld (txt_fg),a : ld hl,s_gt : ld c,2 : call print_at
         ld a,(hv_mode) : or a : jr z,.loc
         call net_fetch                              ; HL = this track's online records, A = how many (0 when the server can't be reached)
         jr .go
 .loc:   call hs_ptr : ld a,20
-.go:    ld (hv_p),hl : ld (hv_n),a
-        xor a : ld (hv_i),a
-.r:     ld a,(hv_n) : ld b,a : ld a,(hv_i) : cp b : jp nc,.dn
-        add a,3 : ld (txt_row),a
-        ld a,(hv_mode) : or a : jr nz,.nn0                ; is this one of the records just set? (local table of that track, after a race / practice)
-        ld a,(hv_cont) : or a : jr z,.nn0
-        ld a,(track_idx) : ld hl,nw_trk : cp (hl) : jr nz,.nn0
-        ld a,(hv_i) : ld e,a : ld d,0 : ld hl,nw_tab : add hl,de : ld a,(hl) : jr .nn1
-.nn0:   xor a
-.nn1:   ld (hv_nw),a
-        ld a,9 : ld (txt_col),a : ld a,4 : call pcol : ld (txt_fg),a
-        ld a,(hv_i) : inc a : call print_dec2
-        ld a,' ' : call print_char
-        ld a,3 : call pcol : ld (txt_fg),a           ; name in white
-        ld hl,(hv_p) : ld b,5
-.n:     ld a,(hl) : inc hl : push hl : push bc : call print_char : pop bc : pop hl : djnz .n
-        ld (hv_p),hl : ld a,' ' : call print_char
-        ld a,20 : call pcol : ld (txt_fg),a          ; time in green
-        ld hl,(hv_p) : ld e,(hl) : inc hl : ld d,(hl) : inc hl : inc hl : ld (hv_p),hl
-        ex de,hl : call print_tenths
-        ld hl,hv_i : inc (hl) : jp .r
+.go:    ld (hv_p),hl : ld (hv_base),hl : ld (hv_n),a
+        ld a,(hv_cont) : cp 2 : ld b,18 : jr nz,.rw                 ; after a race the panel covers the bottom: 16 text rows then
+        ld b,15
+.rw:    ld a,b : ld (hv_rows),a
+        ld a,(hv_n) : add a,a : jr z,.mx0                           ; 2n-1 lines (a blank line between entries) in a window of hv_rows lines
+        dec a : sub b : jr nc,.mx1
+.mx0:   xor a
+.mx1:   ld (hv_max),a
+        xor a : ld (sc_off),a : ld (sc_t),a : inc a : ld (sc_dir),a : ld a,100 : ld (sc_pause),a
+        call hv_draw
 .dn:    ld a,(hv_n) : or a : jr nz,.pr
         ld hl,s_off : ld c,10 : call print_cen         ; online and nothing came back
         call net_show
@@ -306,7 +276,7 @@ pg_view:
         ld hl,s_cont
 .pc:    ld c,23 : call print_cen
         call menu_in : ld (hv_pr),a
-.w:     call wait_frame : call pl_tick : call menu_in : ld b,a
+.w:     call wait_frame : call pl_tick : call hv_scroll : call menu_in : ld b,a
         ld a,(hv_pr) : cpl : and b : ld c,a : ld a,b : ld (hv_pr),a
         ld d,1 : bit ACC,c : jr nz,.ch                  ; UP / DOWN: next / previous track
         ld d,255 : bit DWN,c : jr nz,.ch
@@ -321,6 +291,48 @@ pg_view:
         ret
 .sw:    ld (hv_mode),a : jp .redraw
 .ch:    ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : jp .redraw
+hv_draw:                                            ; the list window: lines sc_off.. of 2n-1 (entry k on line 2k, blank line between), hv_rows text rows from row 3
+        xor a : ld (fr_x),a : ld (fr_c),a : ld a,32 : ld (fr_y),a : ld a,255 : ld (fr_w),a
+        ld a,(hv_rows) : add a,a : add a,a : add a,a : ld (fr_h),a : call fill_rect
+        xor a : ld (hv_r),a
+.r:     ld a,(sc_off) : ld b,a : ld a,(hv_r) : add a,b
+        bit 0,a : jp nz,.nx
+        srl a : ld (hv_i),a : ld b,a : ld a,(hv_n) : cp b : jp z,.nx : jp c,.nx
+        ld a,(hv_r) : add a,4 : ld (txt_row),a
+        ld a,(hv_mode) : or a : jr nz,.nn0                ; is this one of the records just set? (local table of that track, after a race / practice)
+        ld a,(hv_cont) : or a : jr z,.nn0
+        ld a,(track_idx) : ld hl,nw_trk : cp (hl) : jr nz,.nn0
+        ld a,(hv_i) : ld e,a : ld d,0 : ld hl,nw_tab : add hl,de : ld a,(hl) : jr .nn1
+.nn0:   xor a
+.nn1:   ld (hv_nw),a
+        ld a,9 : ld (txt_col),a : ld a,4 : call pcol : ld (txt_fg),a
+        ld a,(hv_i) : inc a : call print_dec2
+        ld a,' ' : call print_char
+        ld a,3 : call pcol : ld (txt_fg),a           ; name in white
+        ld hl,(hv_base) : ld a,(hv_i) : add a,a : add a,a : add a,a : ld e,a : ld d,0 : add hl,de : ld (hv_p),hl
+        ld b,5
+.n:     ld a,(hl) : inc hl : push hl : push bc : call print_char : pop bc : pop hl : djnz .n
+        ld (hv_p),hl : ld a,' ' : call print_char
+        ld a,20 : call pcol : ld (txt_fg),a          ; time in green
+        ld hl,(hv_p) : ld e,(hl) : inc hl : ld d,(hl) : inc hl : inc hl : ld (hv_p),hl
+        ex de,hl : call print_tenths
+.nx:    ld hl,hv_r : inc (hl) : ld a,(hl) : ld hl,hv_rows : cp (hl) : jp c,.r
+        ret
+hv_base: dw 0
+hv_rows: db 18
+hv_max:  db 0
+hv_r:    db 0
+sc_t:    db 0
+hv_scroll:                                          ; list longer than the window: move one line every 4 frames, wait at the top and the bottom
+        ld a,(hv_max) : or a : ret z
+        ld a,(sc_pause) : or a : jr z,.mv
+        dec a : ld (sc_pause),a : ret
+.mv:    ld hl,sc_t : inc (hl) : ld a,(hl) : and 3 : ret nz
+        ld a,(sc_off) : ld hl,sc_dir : add a,(hl) : ld (sc_off),a
+        ld hl,hv_max : cp (hl) : jr z,.bot
+        or a : jp nz,hv_draw
+        ld a,1 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : jp hv_draw
+.bot:   ld a,255 : ld (sc_dir),a : ld a,100 : ld (sc_pause),a : jp hv_draw
 hv_sv: db 0
 hv_p:  dw 0
 hv_i:  db 0

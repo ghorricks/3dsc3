@@ -103,7 +103,7 @@ int main(int argc,char**argv){
       if(getenv("PADRGT")&&frames>=10&&frames<40&&((frames-10)/3)%2==0&&(frames-10)%3==0+0) padval=0x01;
       if(getenv("PADRGT")&&frames==45) printf("ctl %d %d %d %d\n",rd(0,symaddr("ctl")),rd(0,symaddr("ctl")+1),rd(0,symaddr("ctl")+2),rd(0,symaddr("ctl")+3));
       if(getenv("ONL")){ int o=atoi(getenv("ONL")); if(frames>=o&&frames<=o+2) padval=0x04; if(frames>=o+20&&frames<=o+22) padval=0x01; if(frames==o+15) dump("build/online2.ppm"); if(frames==o+40) dump("build/online3.ppm"); }
-      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames==o+10) dump("build/v1.ppm"); if(frames>=o+12&&frames<=o+14) padval=0x01; if(frames==o+160) dump("build/v2.ppm"); if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames==o+200) dump("build/v3.ppm"); if(frames==o+260) dump("build/v4.ppm"); }
+      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames==o+10) dump("build/v1.ppm"); if(frames==o+90) dump("build/v5.ppm"); if(frames==o+140) dump("build/v6.ppm"); if(frames==o+200) dump("build/v7.ppm"); if(frames>=o+12&&frames<=o+14) padval=0x01; if(frames==o+160) dump("build/v2.ppm"); if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames==o+200) dump("build/v3.ppm"); if(frames==o+260) dump("build/v4.ppm"); }
       if(getenv("PADDWN")&&frames==60) dump("build/online.ppm");                       // START
       if(frames==sf+3) startedrace=1;
       int r0=sf+20;
@@ -157,7 +157,7 @@ int main(int argc,char**argv){
       else if(startedrace && mode<8 && frames>=r0 && frames<r0+accel_frames) padval=(mode==2?0x04:0x10)|(((mode==1||mode==2)&&frames>r0+30)?0x02:0)|((mode==3&&frames>r0+30)?0x08:0);
       if(getenv("TWOP")&&startedrace){ int d=frames-r0; pad2=(d>=0)?(0x10|((d/20)%2?0x02:0x01)):0; padval=(d>=0)?0x10:0; if(d>=0&&frames%10==0 && frames!=lastp2){ lastp2=frames; unsigned ct=symaddr("cpu_t"); printf("ctx %02X%02X %02X%02X ",rd(0,ct+27),rd(0,ct+26),rd(0,ct+34+27),rd(0,ct+34+26)); printf("f%d heads %d %d  speeds %d %d\n",frames,rd(0,ct+4),rd(0,ct+34+4),rd(0,ct+5),rd(0,ct+34+5)); } }
       if(getenv("QUITT")){ int q=atoi(getenv("QUITT")); int w=atoi(getenv("QUITW")?getenv("QUITW"):"1"); int d=frames-q; if(d>=0&&d<=2) padval=0x80; else if(d>=20&&d<=22&&w>=1) padval=0x04; else if(d>=40&&d<=42&&w>=2) padval=0x80; else if(d>=0&&d<60) padval=0; }
-      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames>=o){ padval=0; if(frames>=o+12&&frames<=o+14) padval=0x01; if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames>=o+230&&frames<=o+232) padval=0x04; } }
+      if(getenv("HSV")){ int o=atoi(getenv("HSV")); if(frames>=o){ padval=0; if(frames>=o+12&&frames<=o+14&&!getenv("HSNR")) padval=0x01; if(frames>=o+165&&frames<=o+167) padval=0x01; if(frames>=o+230&&frames<=o+232) padval=0x04; } }
       if(startedrace && frames==r0-1) { sx=ram[(4*8192)+(A_X+1-0x8000)]; sy=ram[(4*8192)+(A_Y+1-0x8000)]; }
       if(startedrace && frames==r0+accel_frames) { ex=ram[(4*8192)+(A_X+1-0x8000)]; ey=ram[(4*8192)+(A_Y+1-0x8000)]; es=ram[(4*8192)+(A_S-0x8000)]; ehd=ram[(4*8192)+(A_H-0x8000)]; elp=ram[(4*8192)+(A_LP-0x8000)]; }
     }
