@@ -245,6 +245,7 @@ pg_view:
         ld hl,s_hl
         ld a,3 : ld (txt_fg),a : ld b,6 : ld c,0 : call print_at
         ld a,(track_idx) : inc a : call print_dec2
+        ld a,3 : ld (txt_fg),a : ld hl,s_dnA : ld b,4 : ld c,0 : call print_at : ld hl,s_upA : ld b,27 : ld c,0 : call print_at     ; down / up arrows: previous / next track
         ld a,(hv_mode) : or a : ld d,4 : jr z,.c0                  ; PRESS LEFT/RIGHT <LOCAL> / <ONLINE>, centred on the screen: D = first column
         ld d,3
 .c0:    ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,d : ld c,2 : push de : call print_at
@@ -396,6 +397,8 @@ hv_n:  db 0
 hv_pr: db 0
 hv_mode: db 0
 s_hl:  db "BEST LAPS - TRACK ",0
+s_dnA: db 92,0
+s_upA: db 93,0
 s_sw1: db "PRESS LEFT/RIGHT",0
 s_sw2: db "LOCAL",0
 s_sw4: db "ONLINE",0

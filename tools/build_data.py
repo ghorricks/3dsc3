@@ -480,6 +480,10 @@ with open(B+"pal.inc","w") as f:
 _ns={}
 exec(open(os.path.join(os.path.dirname(os.path.abspath(__file__)),'font8.py')).read(),_ns)
 fb=_ns['font_bytes']()
+fb=bytearray(fb)   # '\' = down chevron, ']' = up chevron (track change arrows beside the best-laps title; neither character is used in any text)
+for _ch,_rows in ((92,["........","........","#.....#.",".#...#..","..#.#...","...#....","........","........"]),(93,["........","........","...#....","..#.#...",".#...#..","#.....#.","........","........"])):
+    for _i,_r in enumerate(_rows): fb[(_ch-32)*8+_i]=int(_r.replace('#','1').replace('.','0'),2)
+fb=bytes(fb)
 open(B+"font.bin","wb").write(fb)
 # ---- title logo: "3D STOCK CARS 3", 2x scaled, bold, 1 bit/pixel, 240x16 (30 bytes/row)
 _G=_ns['G']; _txt="3D STOCK CARS 3"
