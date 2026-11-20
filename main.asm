@@ -212,14 +212,12 @@ clear_light:                                        ; put the clean track back w
         ret
 
 light_step:                                         ; one frame of the start sequence -> A = 1 while the cars are held
-        ld a,(lt_t) : cp 100 : jr nz,.nb
-        xor a : call cd_go                                  ; red lights up: first beep
-.nb:    ld hl,lt_t : dec (hl) : jr nz,.r
+        ld hl,lt_t : dec (hl) : jr nz,.r
         ld a,(lt_s) : inc a : ld (lt_s),a
         cp 2 : jr nz,.g
-        ld a,50 : ld (lt_t),a : call draw_light : xor a : call cd_go : jr .r        ; yellow: the same beep
+        ld a,50 : ld (lt_t),a : call draw_light : jr .r
 .g:     cp 3 : jr nz,.off
-        ld a,70 : ld (lt_t),a : call draw_light : ld a,1 : call cd_go : jr .r        ; green: the high one
+        ld a,70 : ld (lt_t),a : call draw_light : ld a,1 : call cd_go : jr .r        ; green: the chime
 .off:   call clear_light : xor a : ld (lt_s),a : ret
 .r:     ld a,(lt_s) : cp 3 : ld a,1 : ret c
         xor a : ret
@@ -1636,7 +1634,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112021",0
+s_ver: db "26112022",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
