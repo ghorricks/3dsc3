@@ -149,7 +149,7 @@ init_race:
         ld a,1 : ld (hud_dirty),a
         ld a,(phase) : or a : ret z
         call light_pos                              ; race: red, yellow, green in front of the line
-        ld a,1 : ld (lt_s),a : ld a,100 : ld (lt_t),a
+        ld a,1 : ld (lt_s),a : ld a,50 : ld (lt_t),a
         jp draw_light
 
 ; ---- traffic light: a post and a box with three lamps, ahead of the line in the middle of the road
@@ -189,7 +189,7 @@ draw_light:
         ld a,c : ld e,a : add a,a : add a,a : add a,a : sub e : ld e,a            ; 7 * lamp
         ld a,(lt_y) : sub 30 : add a,e : ld (fr_y),a
         ld a,5 : ld (fr_w),a : ld (fr_h),a
-        ld a,(lt_s) : dec a : cp c : ld hl,lamp_lit : jr z,.c                      ; the current colour is bright, the others dim
+        ld a,(lt_s) : sub 2 : cp c : ld hl,lamp_lit : jr z,.c                      ; the current colour is bright, the others dim
         ld hl,lamp_dim
 .c:     ld b,0 : add hl,bc : ld a,(hl) : ld (fr_c),a : call fill_rect
         pop bc : inc c : ld a,c : cp 3 : jr c,.l
@@ -212,14 +212,15 @@ clear_light:                                        ; put the clean track back w
         ret
 
 light_step:                                         ; one frame of the start sequence -> A = 1 while the cars are held
-        ld hl,lt_t : dec (hl) : jr nz,.r
+        ld hl,lt_t : dec (hl) : jr nz,.r                    ; lt_s: 1 all lamps off, 2 red (low chime), 3 yellow (low chime), 4 green (high chime), then off
         ld a,(lt_s) : inc a : ld (lt_s),a
-        cp 2 : jr nz,.g
-        ld a,50 : ld (lt_t),a : call draw_light : jr .r
-.g:     cp 3 : jr nz,.off
-        ld a,70 : ld (lt_t),a : call draw_light : ld a,1 : call cd_go : jr .r        ; green: the chime
+        cp 5 : jr nc,.off
+        ld b,50 : cp 4 : jr nz,.t
+        ld b,70
+.t:     ld a,b : ld (lt_t),a : call draw_light
+        ld a,(lt_s) : cp 4 : sbc a,a : inc a : call cd_go : jr .r      ; A = 1 (the high chime) on green only
 .off:   call clear_light : xor a : ld (lt_s),a : ret
-.r:     ld a,(lt_s) : cp 3 : ld a,1 : ret c
+.r:     ld a,(lt_s) : cp 4 : ld a,1 : ret c
         xor a : ret
 
 ; ---- race order: crossings of the line, then how far round the lane
@@ -288,7 +289,7 @@ rank_best:                                          ; best unranked active car -
 
 nxt_flag:   db 0
 phase:      db 0                                    ; 0 practice, 1 race
-lt_s:       db 0                                    ; traffic light: 0 off, 1 red, 2 yellow, 3 green
+lt_s:       db 0                                    ; traffic light: 0 not shown, 1 all lamps off, 2 red, 3 yellow, 4 green
 lt_t:       db 0
 lt_x:       db 0
 lt_y:       db 0
@@ -1634,7 +1635,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112022",0
+s_ver: db "26112023",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
