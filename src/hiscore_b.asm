@@ -264,14 +264,14 @@ pg_view:
         ld hl,s_hl
         ld a,3 : ld (txt_fg),a : ld b,6 : ld c,0 : call print_at
         ld a,(track_idx) : inc a : call print_dec2
-        ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,2 : ld c,1 : call print_at          ; UP/DOWN: LOCAL OR ONLINE - the one being shown in green
-        ld a,(hv_mode) : or a : ld a,20 : jr z,.lg
-        ld a,3
-.lg:    ld (txt_fg),a : ld hl,s_sw2 : ld b,15 : ld c,1 : call print_at
-        ld a,3 : ld (txt_fg),a : ld hl,s_sw3 : ld b,21 : ld c,1 : call print_at
-        ld a,(hv_mode) : or a : ld a,3 : jr z,.og
-        ld a,20
-.og:    ld (txt_fg),a : ld hl,s_sw4 : ld b,23 : ld c,1 : call print_at
+        ld a,3 : ld (txt_fg),a : ld hl,s_sw1 : ld b,0 : ld c,1 : call print_at          ; PRESS LEFT/RIGHT <LOCAL> ONLINE: names in green, the one shown has white < > around it
+        ld a,20 : ld (txt_fg),a : ld hl,s_sw2 : ld b,18 : ld c,1 : call print_at
+        ld hl,s_sw4 : ld b,25 : ld c,1 : call print_at
+        ld a,3 : ld (txt_fg),a
+        ld a,(hv_mode) : or a : ld b,17 : ld e,23 : jr z,.mk
+        ld b,24 : ld e,31
+.mk:    ld hl,s_lt : ld c,1 : push de : call print_at
+        pop de : ld b,e : ld hl,s_gt : ld c,1 : call print_at
         ld a,(hv_mode) : or a : jr z,.loc
         call net_fetch                              ; HL = this track's online records, A = how many (0 when the server can't be reached)
         jr .go
@@ -328,10 +328,11 @@ hv_n:  db 0
 hv_pr: db 0
 hv_mode: db 0
 s_hl:  db "BEST LAPS - TRACK ",0
-s_sw1: db "LEFT/RIGHT = ",0
+s_sw1: db "PRESS LEFT/RIGHT",0
 s_sw2: db "LOCAL",0
-s_sw3: db "/",0
 s_sw4: db "ONLINE",0
+s_lt:  db "<",0
+s_gt:  db ">",0
 s_off: db "SERVER NOT AVAILABLE",0
 s_ne:  db "NET ERROR  STAGE ",0
 net_show:                                           ; the reason a call failed: stage and error code (hex)
