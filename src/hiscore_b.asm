@@ -548,5 +548,28 @@ pg_x13: push bc : ld h,d : ld l,e : call .m : ex de,hl          ; DE = dx x 1.31
         sra b : rr c : sra b : rr c                       ; x/16
         add hl,bc
         ret
+; ---- the number board (moved here from the main code): white frame, black face, the track number, on a short post.
+; Track 26 (DEBUG) has a narrow board (20 px) that fits into the infield; the others are 32 px wide.
+pg_board:
+        ld hl,(meta_ptr) : ld de,9 : add hl,de
+        ld a,(hl) : ld (bd_col),a : inc hl : ld a,(hl) : ld (bd_row),a
+        ld a,(bd_col) : add a,a : add a,a : add a,a : ld (bd_px),a
+        ld a,(bd_row) : add a,a : add a,a : add a,a : ld (bd_py),a
+        ld bc,32 : ld a,(track_idx) : cp 25 : jr c,.w
+        ld bc,6*256+20
+.w:     ld a,b : ld (bd_o),a : ld a,c : ld (bd_w),a            ; offset and width
+        ld a,(bd_px) : add a,b : ld (fr_x),a : ld a,(bd_py) : dec a : ld (fr_y),a
+        ld a,c : ld (fr_w),a : ld a,10 : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
+        ld a,(bd_px) : ld hl,bd_o : add a,(hl) : inc a : ld (fr_x),a : ld a,(bd_py) : ld (fr_y),a
+        ld a,(bd_w) : sub 2 : ld (fr_w),a : ld a,8 : ld (fr_h),a : xor a : ld (fr_c),a : call fill_rect
+        ld a,(bd_w) : srl a : dec a : ld hl,bd_o : add a,(hl) : ld hl,bd_px : add a,(hl) : ld (fr_x),a
+        ld a,(bd_py) : add a,9 : ld (fr_y),a
+        ld a,2 : ld (fr_w),a : ld a,5 : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
+        ld a,3 : ld (txt_fg),a
+        ld a,(bd_col) : inc a : ld (txt_col),a
+        ld a,(bd_row) : ld (txt_row),a
+        ld a,(track_idx) : inc a
+        jp print_dec2
+
 t26_tab: dup 20 : db "3DSC3",$0F,$27,1 : edup                    ; track 26 (DEBUG): a blank table that is never saved
 hsb_end:

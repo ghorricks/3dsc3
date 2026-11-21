@@ -1198,22 +1198,7 @@ fill_rect:                                          ; fr_x fr_y fr_w fr_h fr_c
         ld hl,fr_h : dec (hl) : jr nz,.row
         ret
 
-draw_board:
-        ld hl,(meta_ptr) : ld de,9 : add hl,de
-        ld a,(hl) : ld (bd_col),a : inc hl : ld a,(hl) : ld (bd_row),a
-        ld a,(bd_col) : add a,a : add a,a : add a,a : ld (bd_px),a
-        ld a,(bd_row) : add a,a : add a,a : add a,a : ld (bd_py),a
-        ld a,(bd_px) : ld (fr_x),a : ld a,(bd_py) : dec a : ld (fr_y),a
-        ld a,32 : ld (fr_w),a : ld a,10 : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
-        ld a,(bd_px) : inc a : ld (fr_x),a : ld a,(bd_py) : ld (fr_y),a
-        ld a,30 : ld (fr_w),a : ld a,8 : ld (fr_h),a : xor a : ld (fr_c),a : call fill_rect
-        ld a,(bd_px) : add a,15 : ld (fr_x),a : ld a,(bd_py) : add a,9 : ld (fr_y),a
-        ld a,2 : ld (fr_w),a : ld a,5 : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
-        ld a,3 : ld (txt_fg),a
-        ld a,(bd_col) : inc a : ld (txt_col),a
-        ld a,(bd_row) : ld (txt_row),a
-        ld a,(track_idx) : inc a
-        jp print_dec2
+draw_board:  call hs_on : call pg_board : jp hs_off          ; the body lives in page 93
 
 ; start/finish line: a black-and-white chequered strip across the road, a little ahead of the start position,
 ; running at 90 degrees to the direction of travel (marched out each way until the fence or the road edge)
@@ -1350,7 +1335,8 @@ draw_trees:
         ld a,(tr_y) : ld b,a : add a,a : add a,a : add a,a : add a,b : add a,3 : ld (tr_y),a  ; y = y*9+3
         ld a,(tr_x) : cp 4 : jr c,.nx : cp 250 : jr nc,.nx
         ld (sl_lx),a
-        ld a,(tr_y) : cp 18 : jr c,.nx : cp 190 : jr nc,.nx
+        ld a,(track_idx) : cp 25 : jr nz,.q : ld a,(tr_n) : cp 164 : jr nz,.q : ld hl,sl_lx : dec (hl) : dec (hl) : dec (hl)      ; track 26: the one rock that touched a fence moves 3 px left
+.q:     ld a,(tr_y) : cp 18 : jr c,.nx : cp 190 : jr nc,.nx
         ld (sl_ly),a
         sub 9 : ld (tr_r),a : ld c,9                ; rows y-9 .. y-1
 .r:     ld a,(sl_lx) : sub 2 : ld e,a : ld a,(tr_r) : call l2_row_addr
@@ -1636,7 +1622,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112101",0
+s_ver: db "26112102",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1711,6 +1697,8 @@ bd_col:     db 0
 bd_row:     db 0
 bd_px:      db 0
 bd_py:      db 0
+bd_o:       db 0
+bd_w:       db 0
 
             INCLUDE "build/pal.inc"
             INCLUDE "build/speed.inc"

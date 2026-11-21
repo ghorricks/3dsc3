@@ -330,6 +330,13 @@ for n in range(1,27):
         sc=int(sub.sum())
         if best_b is None or sc<best_b[0]: best_b=(sc,bc,br)
     _,bcol,brow=best_b
+    if n==26:                                  # narrow board (20 px) inside the infield, as far top-right as it fits
+        cand=[]
+        for bc in range(0,29):
+            for br in range(3,22):
+                x0,y0=bc*8,br*8
+                cand.append((int(pan[max(y0-2,0):min(y0+16,H),x0+5:x0+27].sum()),-bc,br,bc,br))
+        cand.sort(); print("board 26 candidates",len(cand),cand[:8]); bcol,brow=(21,18)
     # ---- bank: base plane | ground plane | progress map
     _lab,_=ndi.label(~solid); _comp=_lab==_lab[sy,sx]               # only the drivable region is road: islands and the outside stay grass (with trees)
     ground=ndi.binary_dilation(_comp,iterations=1)&ground
