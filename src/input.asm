@@ -63,7 +63,10 @@ read_kbd:                                           ; A = scheme 2..q5 -> A = co
         ld de,rk_mask : ld a,5 : ld (rk_n),a
 .l:     ld b,(hl) : inc hl : ld c,$FE : in a,(c) : and (hl) : inc hl
         jr nz,.np                                   ; key not pressed (line still high)
-        ld a,(de) : ld c,a : ld a,(rk_res) : or c : ld (rk_res),a
+        ld a,b : cp $7F : jr nz,.pr                  ; SPACE is half of BREAK (Caps Shift + Space) and of Symbol Shift + Space: with a shift down it is not the boost key
+        ld bc,$FEFE : in a,(c) : rra : jr nc,.np
+        ld b,$7F : in a,(c) : bit 1,a : jr z,.np
+.pr:        ld a,(de) : ld c,a : ld a,(rk_res) : or c : ld (rk_res),a
 .np:    inc de : ld a,(rk_n) : dec a : ld (rk_n),a : jr nz,.l
         ld a,(rk_res)
         ret
