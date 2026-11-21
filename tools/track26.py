@@ -2,7 +2,7 @@
 import numpy as np, sys, json
 from PIL import Image
 from scipy import ndimage as ndi
-src=sys.argv[1]
+src=sys.argv[1]; N=int(sys.argv[4]) if len(sys.argv)>4 else 26
 a=np.array(Image.open(src).convert("RGB")).astype(int)
 road=(a.sum(2)==0)|((a[...,0]>150)&(a[...,1]<60)&(a[...,2]<60))      # black tarmac, plus the red start pole and car sprites
 road[:16]=False; road[184:]=False
@@ -15,8 +15,8 @@ er=ndi.binary_erosion(road,structure=np.array([[0,1,0],[1,1,1],[0,1,0]]),border_
 fence=road&~er
 img=np.zeros((192,256,3),np.uint8); img[:]=(0,170,0); img[road]=(70,70,85); img[fence]=(255,255,255)
 img[:12]=(0,0,0)
-Image.fromarray(img).save("/home/claude/stockcar/track_edits/track26.png")
-open("/home/claude/stockcar/build/track26x.bin","wb").write(np.packbits(fence,axis=1).tobytes())
-t=json.load(open("/home/claude/stockcar/build/tracks.json")); t["26"]={"wall_colour":7,"blue_bar":None,"wall_px":int(fence.sum()),"start":[int(sys.argv[2]),int(sys.argv[3])]}
+Image.fromarray(img).save("/home/claude/stockcar/track_edits/track%02d.png"%N)
+open("/home/claude/stockcar/build/track%02dx.bin"%N,"wb").write(np.packbits(fence,axis=1).tobytes())
+t=json.load(open("/home/claude/stockcar/build/tracks.json")); t[str(N)]={"wall_colour":7,"blue_bar":None,"wall_px":int(fence.sum()),"start":[int(sys.argv[2]),int(sys.argv[3])]}
 json.dump(t,open("/home/claude/stockcar/build/tracks.json","w"))
 Image.fromarray(img).resize((768,576),Image.NEAREST).save("/tmp/t26.png"); print(road.sum(),fence.sum())

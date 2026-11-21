@@ -58,7 +58,8 @@ mn_rep:     db 0
 menu_ukey:                                          ; U: check the server for a newer build (does not return: the menu is drawn again)
         ld a,(idle_go) : or a : jr z,.nid                   ; 20 s without a key: the title picture for 10 s, then the menu again
         call title_show : xor a : ld (idle_go),a : pop af : jp menu_run
-.nid:   ld bc,$DFFE : in a,(c) : bit 3,a : ret nz
+.nid:   nextreg REG_MMU6,LOGO_PG : call pg_dbgk : call map_track      ; Symbol Shift + D: DEBUG on / off (page 81)
+        ld bc,$DFFE : in a,(c) : bit 3,a : ret nz
         pop af
         call hs_vcheck
 .ur:    call wait_frame : ld bc,$DFFE : in a,(c) : bit 3,a : jr z,.ur     ; let go of U first

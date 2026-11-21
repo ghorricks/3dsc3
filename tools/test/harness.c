@@ -18,6 +18,7 @@ static void nreg(uint8_t r,uint8_t v){ regs[r]=v;
 static uint8_t pin(z80*z,uint8_t lo){ uint16_t p=(z->b<<8)|lo;
   if(lo==0x1F){ if(padval&&getenv("PDBG")) printf("PADRD %02X f%d\n",padval,frames); return padval; } if(lo==0x37) return pad2;
   if(lo==0xFE&&getenv("DBGT")){ int f=frames-60; if(f>=0&&f<50&&(f%10)<4){ int k=f/10; unsigned want[5]={0xFD,0xFB,0x7F,0xDF,0xFD}, bit[5]={2,2,4,3,4}; if(z->b==want[k]) return 0xFF&~(1<<bit[k]); } }
+  if(lo==0xFE&&getenv("SSD")){ int f0=atoi(getenv("SSD")); if(frames>=f0&&frames<f0+3000){ uint8_t r=0xFF; if(!(z->b&0x80)) r&=~2; if(!(z->b&0x02)) r&=~4; return r; } }
   if(lo==0xFE){ if(getenv("PAUSEF")&&(z->b==0xFE||z->b==0x7F)){ int pf=atoi(getenv("PAUSEF")); if((frames>=pf&&frames<pf+4)||(frames>=pf+50&&frames<pf+54)) return 0xFE; } return 0xFF; }
   if(p==0x253B){ if(nsel==0x1F){ uint8_t r=ras&255; ras+=4; if(ras>=312){ras=0; ifr++; z80_gen_int(z,0xFF);} if(r==192)frames++; return r;} return regs[nsel]; }
   return 0xFF; }

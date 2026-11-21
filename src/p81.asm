@@ -1,7 +1,6 @@
 ; code and data that live in page 81 (mapped at $C000 while it runs; it calls only routines in main memory)
 ; ---- instructions screen (moved here to free main code space)
 pg_instr:
-        xor a : ld (dbg_i),a : ld (dbg_k),a
         call clear_screen
         ld a,3 : ld (txt_fg),a
         ld b,10 : ld c,1 : ld hl,s_ins0 : call print_at
@@ -20,7 +19,7 @@ pg_instr:
         inc c : jr .l
 .w:     ld a,PROMPT_C : ld (txt_fg),a : ld hl,i11 : ld c,23 : call print_cen
 .wk:    call menu_in : or a : jr nz,.wk                ; let go of the key that brought us here
-.w2:    call wait_frame : call dbg_scan : call menu_in : bit BST,a : jr z,.w2
+.w2:    call wait_frame : call menu_in : bit BST,a : jr z,.w2
 .w3:    call wait_frame : call menu_in : bit BST,a : jr nz,.w3
         ret
 ; raw joystick ports, live (to find out which bits each stick really sends)
@@ -61,31 +60,29 @@ ud_bar: ld a,(ud_part) : ld hl,ud_np : cp (hl) : jr nz,.f
         ret
 ud_fill: db 0
 
-; ---- type D E B U G on this page: unlocks all 24 tracks
-dbg_i:  db 0
-dbg_k:  db 0
-dbg_scan:
-        ld bc,$FDFE : in a,(c) : ld d,a                 ; D = bit 2, G = bit 4
-        ld bc,$FBFE : in a,(c) : ld e,a                 ; E = bit 2
-        ld bc,$7FFE : in a,(c) : ld h,a                 ; B = bit 4
-        ld bc,$DFFE : in a,(c) : ld l,a                 ; U = bit 3
-        ld b,0
-        bit 2,d : jr nz,.k1 : ld b,1 : jr .kd
-.k1:    bit 2,e : jr nz,.k2 : ld b,2 : jr .kd
-.k2:    bit 4,h : jr nz,.k3 : ld b,3 : jr .kd
-.k3:    bit 3,l : jr nz,.k4 : ld b,4 : jr .kd
-.k4:    bit 4,d : jr nz,.kd : ld b,5
-.kd:    ld a,(dbg_k) : cp b : ret z                     ; only a new key press counts
-        ld a,b : ld (dbg_k),a : or a : ret z
-        ld a,(dbg_i) : inc a : cp b : jr z,.ok          ; the next letter of DEBUG?
-        ld a,b : cp 1 : ld a,0 : jr nz,.rs
-        inc a                                           ; a fresh D starts the word again
-.rs:    ld (dbg_i),a : ret
-.ok:    ld (dbg_i),a : cp 5 : ret nz
-        ld a,26 : ld (trk_max),a : ld (dbg_viz),a
-        ld a,20 : ld (txt_fg),a
-        ld hl,s_dbg : ld c,21 : jp print_cen
-s_dbg:  db "DEBUG: ALL 26 TRACKS UNLOCKED",0
+; ---- DEBUG on / off: Symbol Shift + D on the main menu. A red D after the version number shows it is on; it unlocks all the extra tracks (26, 27).
+dbg_dn: db 0
+pg_dbgk:
+        ld bc,$7FFE : in a,(c) : bit 1,a : jr nz,.up                    ; Symbol Shift down?
+        ld bc,$FDFE : in a,(c) : bit 2,a : jr nz,.up                    ; and D?
+        ld a,(dbg_dn) : or a : ret nz                                   ; only a new press counts
+        inc a : ld (dbg_dn),a
+        ld a,(dbg_viz) : xor 1 : ld (dbg_viz),a
+        ld b,25 : jr z,.off
+        ld b,27
+.off:   ld a,b : ld (trk_max),a
+        cp 26 : jr nc,.mk                                               ; off: a track of the extra ones is not on offer any more
+        ld a,(track_idx) : cp 25 : jr c,.mk
+        xor a : ld (track_idx),a
+.mk:    jp dbg_mark
+.up:    xor a : ld (dbg_dn),a : ret
+dbg_mark:                                                               ; a red D (or a blank) after the version number, bottom centre of the menu
+        ld a,(dbg_viz) : or a : ld hl,s_dd : ld a,24 : jr nz,.p
+        ld hl,s_dn : ld a,3
+.p:     ld (txt_fg),a : ld b,25 : ld c,23 : call print_at
+        ld a,3 : ld (txt_fg),a : ret
+s_dd:   db "D",0
+s_dn:   db " ",0
 
 ; nine level bars, one per tune channel, bottom left of the menu screens.
 ; blue = AY 1 (A B C), green = AY 2, red = AY 3; a bar is as tall as the channel's volume (0-15)
@@ -156,6 +153,7 @@ pg_mhead:   call init_hw                                     ; game palette back
             ld a,3 : ld (txt_fg),a                           ; bottom centre: VERSION : build
             ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
             ld b,17 : ld c,23 : ld hl,s_ver : call print_at
+            call dbg_mark                                    ; the red D when DEBUG is on
             ld a,(vz_car) : ld (idle_vz),a                   ; this screen: if another one is drawn the timer disarms itself
             ld a,1 : ld (idle_en),a
             ld hl,0 : ld (idle_cnt),hl

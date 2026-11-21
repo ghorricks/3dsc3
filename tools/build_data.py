@@ -23,7 +23,7 @@ def _lane14(L):                          # track 14: the lane of the original (w
     G=ndi.binary_dilation(L0,structure=_dk(6))&(Z>0)
     return ndi.binary_opening(np.pad(L0|G,8),structure=_dk(3))[8:-8,8:-8]|L0
 WIDEN={11:_user_lane,14:_lane14}
-EXACT=set(range(1,27))
+EXACT=set(range(1,28))
 INFILL=set()
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
@@ -72,8 +72,8 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     return [p[0] for p in out],[p[1] for p in out],len(out)
 
 meta=[]; PREV=[]
-PERP_N={26:26,25:26,9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
-for n in range(1,27):
+PERP_N={27:26,26:26,25:26,9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
+for n in range(1,28):
     EX=n in EXACT; PERP=PERP_N.get(n,70)
     H,W=(192,256) if EX else (174,254); C.H,C.W=H,W
     if EX:
@@ -224,7 +224,7 @@ for n in range(1,27):
         base=_nb; ground=_ng
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
     if os.path.exists(B+f'tex{n}.npy') and not _edited: _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
-    if 7<=n<=26: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
+    if 7<=n<=27: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[7]                                                    # every fence is white, as on track 1 (the Spectrum original needed different colours)
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
@@ -289,7 +289,7 @@ for n in range(1,27):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
-    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
+    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0,27:16}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)
@@ -330,19 +330,19 @@ for n in range(1,27):
         sc=int(sub.sum())
         if best_b is None or sc<best_b[0]: best_b=(sc,bc,br)
     _,bcol,brow=best_b
-    if n==26:                                  # narrow board (20 px) inside the infield, as far top-right as it fits
+    if n>=26:                                  # narrow board (20 px) inside the infield, as far top-right as it fits
         cand=[]
         for bc in range(0,29):
             for br in range(3,22):
                 x0,y0=bc*8,br*8
                 cand.append((int(pan[max(y0-2,0):min(y0+16,H),x0+5:x0+27].sum()),-bc,br,bc,br))
-        cand.sort(); print("board 26 candidates",len(cand),cand[:8]); bcol,brow=(21,18)
+        cand.sort(); print("board 26 candidates",len(cand),cand[:8]); bcol,brow=(21,18) if n==26 else (cand[0][3],cand[0][4])
     # ---- bank: base plane | ground plane | progress map
     _lab,_=ndi.label(~solid); _comp=_lab==_lab[sy,sx]               # only the drivable region is road: islands and the outside stay grass (with trees)
     ground=ndi.binary_dilation(_comp,iterations=1)&ground
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=26 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=27 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
     PATHS[n]=(px,py)
     if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
@@ -376,7 +376,7 @@ sheet=Image.new("RGB",(260*6+28,194*5+20),(40,40,40))
 for i,pv in enumerate(PREV): sheet.paste(Image.fromarray(pv),(4+(i%6)*260,4+(i//6)*194))
 sheet.save(B+"preview_filled.png")
 with open("/home/claude/stockcar/src/trackdata.asm","w") as f:
-    for n in range(26): f.write(f'    MMU 6 7, {32+2*n if n<24 else (90 if n==24 else 94)}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
+    for n in range(27): f.write(f'    MMU 6 7, {32+2*n if n<24 else {24:90,25:94,26:26}[n]}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
 SPEEDK=12.5/14   # top speed scaled so track 1 lap is ~14 s (original), was 12.5 s
 # ---- speed table: NH headings x 16 levels -> (dx,dy) signed 8.8
 with open(B+"speed.inc","w") as f:
