@@ -294,7 +294,7 @@ pg_view:
         xor a : ld (pl_on),a
         ret
 .sw:    ld (hv_mode),a : jp .redraw
-.ch:    ld a,(trk_max) : ld b,a : ld a,(track_idx) : call wrapadd : ld (track_idx),a : jp .redraw
+.ch:    ld b,25 : ld a,(track_idx) : call wrapadd : ld (track_idx),a : jp .redraw
 hv_draw:                                            ; the list window: lines sc_off.. of 2n-1 (entry k on line 2k, blank line between), hv_rows text rows from row 4
         xor a : ld (fr_x),a : ld (fr_c),a : ld a,32 : ld (fr_y),a : ld a,255 : ld (fr_w),a
         ld a,(hv_rows) : add a,a : add a,a : add a,a : ld (fr_h),a : call fill_rect
@@ -548,4 +548,5 @@ pg_x13: push bc : ld h,d : ld l,e : call .m : ex de,hl          ; DE = dx x 1.31
         sra b : rr c : sra b : rr c                       ; x/16
         add hl,bc
         ret
+t26_tab: dup 20 : db "3DSC3",$0F,$27,1 : edup                    ; track 26 (DEBUG): a blank table that is never saved
 hsb_end:

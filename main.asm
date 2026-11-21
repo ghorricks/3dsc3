@@ -417,7 +417,8 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
 
 map_track:                                          ; 16K bank 16+idx -> $C000-$FFFF
         ld a,(track_idx) : add a,a : add a,32
-        cp 80 : jr nz,.mp : ld a,90                    ; track 25 lives past the music pages
+        cp 80 : jr nz,.m2 : ld a,90                    ; track 25 lives past the music pages
+.m2:    cp 82 : jr nz,.mp : ld a,94                    ; track 26 (DEBUG only): pages 94-95
 .mp:    nextreg REG_MMU6,a : inc a : nextreg REG_MMU7,a
         ret
 
@@ -1233,7 +1234,7 @@ draw_startline:
         ld hl,hcos5 : ld (slc_p),hl : ld hl,hsin5 : ld (sls_p),hl      ; tracks 5, 6: fences at -14.8 / 75.2 degrees
         ld a,31 : ld (sl_h),a
 .std:
-        ld a,(track_idx) : sub 7 : cp 18 : jr nc,.nf         ; tracks 8 to 24: start-line heading from a table
+        ld a,(track_idx) : sub 7 : cp 19 : jr nc,.nf         ; tracks 8 to 24: start-line heading from a table
         ld e,a : ld d,0 : ld hl,slh_t : add hl,de : ld a,(hl) : ld (sl_h),a
 .nf:
         ld a,$80 : ld (sl_x),a : ld (sl_y),a
@@ -1249,7 +1250,7 @@ draw_startline:
         ld a,(track_idx) : sub 4 : cp 3 : jr nc,.nl5
         ld a,4 : ld (sl_ax),a : ld a,-1 : ld (sl_ay),a : ld hl,290 : ld (sl_lim),hl
 .nl5:
-        ld a,(track_idx) : sub 7 : cp 18 : jr nc,.nl8
+        ld a,(track_idx) : sub 7 : cp 19 : jr nc,.nl8
         ld e,a : ld d,0 : add a,a : add a,e : ld e,a : ld hl,slax_t : add hl,de      ; 3 bytes a track: ax, ay, limit
         ld a,(hl) : ld (sl_ax),a : inc hl : ld a,(hl) : ld (sl_ay),a : inc hl : ld a,(hl) : ld l,a : ld h,0 : ld (sl_lim),hl
 .nl8:
@@ -1285,9 +1286,9 @@ sl_px:                                              ; plot sl_col at (sl_qx,sl_q
         ret
 sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3, -8,0,1,3, -9,0,1,3
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
-slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0                                  ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
+slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0, 0                              ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
 slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
-        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100
+        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100, 1,0,100
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1635,7 +1636,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112024",0
+s_ver: db "26112101",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

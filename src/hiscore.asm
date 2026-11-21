@@ -66,13 +66,14 @@ HS_NAMES    equ HS_ENT+4000                         ; the four players' names (5
 pn_tab      equ HS_NAMES
 pn_def:     db 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36     ; just an "A" until a player types a name
 
-hs_ptr:                                             ; -> HL = first entry of the current track
-        ld a,(track_idx)
+hs_ptr:                                             ; -> HL = first entry of the current track (track 26, DEBUG only, has no saved table: a blank one in page 93)
+        ld a,(track_idx) : cp 25 : jr c,.o : ld hl,t26_tab : ret
+.o:
      ld d,a : ld e,160 : mul d,e : ld hl,HS_ENT : add hl,de
         ret
 
 hs_rank:                                            ; DE = hundredths -> A = place 0..19, or 20 when it does not make the table
-        ld a,(track_idx)
+        ld a,(track_idx) : cp 25 : ld a,20 : ret nc                 ; track 26: no records
 
         push de : call hs_ptr : push hl : pop ix : pop de
         xor a : ld (hr_i),a

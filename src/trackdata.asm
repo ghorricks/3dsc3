@@ -73,3 +73,6 @@
     MMU 6 7, 90
     ORG $C000
     INCBIN "build/track25.pg"
+    MMU 6 7, 94
+    ORG $C000
+    INCBIN "build/track26.pg"
