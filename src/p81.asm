@@ -292,3 +292,4 @@ sc_dc:                                                          ; HL = column of
         ret
 .bl:    xor a : ld (sc_k),a : jr .ok
 msg_buf:    ds 504                                          ; the scrolling messages from the server (up to 500 characters, 0-terminated; empty = none)
+lg2_dat:    INCBIN "build/logo2.bin"                          ; menu banner: 4 palette bytes, then 24 rows of 43 bytes
