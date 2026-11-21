@@ -1272,9 +1272,9 @@ sl_px:                                              ; plot sl_col at (sl_qx,sl_q
         ret
 sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3, -8,0,1,3, -9,0,1,3
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
-slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0, 0, 16                              ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
+slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0, 0, 24                              ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
 slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
-        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100, 1,0,100, -1,0,100
+        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100, 1,0,100, 0,-1,100
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1623,7 +1623,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112104",0
+s_ver: db "26112105",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1738,6 +1738,8 @@ code_end:
             ASSERT code_end <= $BA00                    ; the main code must stay below the IM2 vector table
             ORG $BA00
 mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
+            ORG $BB01
+msg_buf:    ds 186                                      ; the scrolling messages from the server (up to 180 characters, 0-terminated; empty = none): fits in the gap before the vector target
             ORG $BBBB
             JP mus_isr
 track_tab:

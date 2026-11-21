@@ -179,6 +179,7 @@ pg_vcheck:
         ld b,a : xor a : ld (nb_ver),a
         ld a,b : or a : ret nz
         nextreg REG_MMU6,NET_PG
+        call msg_grab                                       ; line 2 of the reply = the scrolling messages (old servers send none)
         ld hl,$C000 : ld de,upd_ver : ld b,8
 .c:     ld a,(hl) : sub '0' : cp 10 : ret nc
         add a,'0' : ld (de),a : inc hl : inc de : djnz .c
@@ -227,6 +228,17 @@ nb_dg:      ld a,'0'                                           ; HL / BC -> digi
 nb_end:     ld hl,s_c5 : call nb_put                           ; reply goes to a file, read back with esxDOS
             ld a,13 : ld (de),a : inc de : xor a : ld (de),a : ret
 
+msg_grab:                                                       ; the reply is at $C000: skip line 1, keep line 2 (up to 190 characters) in msg_buf
+        xor a : ld (msg_buf),a
+        ld hl,$C000 : ld b,255
+.f:     ld a,(hl) : inc hl : cp 10 : jr z,.g
+        or a : ret z
+        djnz .f
+        ret
+.g:     ld de,msg_buf : ld b,180
+.c:     ld a,(hl) : inc hl : cp 32 : jr c,.e
+        ld (de),a : inc de : djnz .c
+.e:     xor a : ld (de),a : ret
 net_clear:  nextreg REG_MMU6,NET_PG                            ; reply bank at $C000
             ld hl,$C000 : ld de,$C001 : ld bc,511 : ld (hl),0 : ldir
             ret

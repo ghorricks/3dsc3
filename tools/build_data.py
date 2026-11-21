@@ -289,7 +289,7 @@ for n in range(1,28):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
-    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0,27:16}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
+    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0,27:24}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)

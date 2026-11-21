@@ -63,6 +63,7 @@ ud_fill: db 0
 ; ---- DEBUG on / off: Symbol Shift + D on the main menu. A red D after the version number shows it is on; it unlocks all the extra tracks (26, 27).
 dbg_dn: db 0
 pg_dbgk:
+        call sc_tick                                                    ; the scrolling message line
         ld bc,$7FFE : in a,(c) : bit 1,a : jr nz,.up                    ; Symbol Shift down?
         ld bc,$FDFE : in a,(c) : bit 2,a : jr nz,.up                    ; and D?
         ld a,(dbg_dn) : or a : ret nz                                   ; only a new press counts
@@ -150,6 +151,7 @@ tk:         db 0
 pg_mhead:   call init_hw                                     ; game palette back (the title picture sets its own)
             ld a,3 : ld (txt_fg),a
             call by_draw                                     ; By Gavin Horricks (mixed case strip, one character right of the old centring)
+            xor a : ld (sc_st),a : ld (sc_t),a              ; the message line starts again from the credit
             ld a,3 : ld (txt_fg),a                           ; bottom centre: VERSION : build
             ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
             ld b,17 : ld c,23 : ld hl,s_ver : call print_at
@@ -219,3 +221,66 @@ by_draw:                                                     ; 17 cells x 8 rows
             ret
 by_r:       db 0
 by_bmp:     INCBIN "build/byline.bin"
+
+; ---- the scrolling message line (y 24-31, under the title): "By Gavin Horricks" stays for 2 seconds, then the messages from the server push it
+; off to the left, 2 pixels a frame; when the last one has gone the credit is drawn again and the cycle repeats.
+sc_st:  db 0                                                    ; 0 credit shown (waiting), 1 scrolling
+sc_t:   db 0
+sc_s:   dw 0                                                    ; pixels of the message already pushed in
+sc_lpx: dw 0                                                    ; length of the message text in pixels
+sc_k:   db 0
+sc_r:   db 0
+sc_tick:
+        IFDEF SCTEST
+        ld a,(sc_st) : cp 2 : ret z
+        ld a,(msg_buf) : or a : ret z
+        ld hl,msg_buf : ld de,0
+.tc:    ld a,(hl) : or a : jr z,.td
+        inc hl : inc de : jr .tc
+.td:    ex de,hl : add hl,hl : add hl,hl : add hl,hl : ld (sc_lpx),hl
+        ld hl,0
+.tl:    push hl : ld a,l : add a,60 : ld c,a : call sc_dc : pop hl : inc hl : ld a,l : cp 120 : jr c,.tl
+        ld a,2 : ld (sc_st),a : ret
+        ENDIF
+        ld a,(sc_st) : or a : jr nz,.run
+        ld a,(msg_buf) : or a : ret z                           ; nothing to show
+        ld hl,sc_t : inc (hl) : ld a,(hl) : cp 100 : ret c      ; 2 seconds of the credit
+        ld a,1 : ld (sc_st),a
+        ld hl,0 : ld (sc_s),hl
+        ld hl,msg_buf : ld de,0
+.l:     ld a,(hl) : or a : jr z,.d
+        inc hl : inc de : jr .l
+.d:     ex de,hl : add hl,hl : add hl,hl : add hl,hl : ld (sc_lpx),hl
+        ret
+.run:   call sc_shift
+        ld hl,(sc_s) : ld c,254 : call sc_dc
+        ld hl,(sc_s) : inc hl : ld c,255 : call sc_dc
+        ld hl,(sc_s) : inc hl : inc hl : ld (sc_s),hl
+        ld hl,(sc_lpx) : ld de,256 : add hl,de : ex de,hl             ; DE = pixels after which the last message has left the screen
+        ld hl,(sc_s) : or a : sbc hl,de : ret c
+        ld hl,0 : ld (sc_s),hl                                        ; keep going: the messages come round again (no return to the credit)
+        ret
+sc_shift:                                                       ; the 8 rows of the strip 2 pixels to the left
+        xor a : ld (sc_r),a
+.r:     ld a,(sc_r) : add a,24 : ld e,0 : call l2_row_addr
+        ld h,d : ld l,e : inc hl : inc hl : ld bc,254 : ldir
+        ld a,(sc_r) : inc a : ld (sc_r),a : cp 8 : jr c,.r
+        ret
+sc_dc:                                                          ; HL = column of the message text, C = screen x: draws its 8 pixels (blank beyond the text)
+        push hl : ld de,(sc_lpx) : or a : sbc hl,de : pop hl : jr nc,.bl
+        ld a,l : and 7 : ld (sc_k),a
+        srl h : rr l : srl h : rr l : srl h : rr l
+        ld h,0 : ld de,msg_buf : add hl,de : ld a,(hl)
+        sub 32 : jr c,.sp : cp 64 : jr c,.ok
+.sp:    xor a
+.ok:    ld l,a : ld h,0 : add hl,hl : add hl,hl : add hl,hl : ld de,font : add hl,de
+        xor a : ld (sc_r),a
+.r:     ld a,(sc_k) : ld b,a : ld a,(hl) : inc b : jr .e
+.s:     add a,a
+.e:     djnz .s
+        and $80 : ld a,0 : jr z,.q
+        ld a,4
+.q:     ld b,a : push hl : ld a,(sc_r) : add a,24 : ld e,c : call l2_row_addr : ld a,b : ld (de),a : pop hl : inc hl
+        ld a,(sc_r) : inc a : ld (sc_r),a : cp 8 : jr c,.r
+        ret
+.bl:    xor a : ld (sc_k),a : jr .ok
