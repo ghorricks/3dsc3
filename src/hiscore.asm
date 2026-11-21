@@ -446,7 +446,7 @@ pg_logo:                                            ; 164 x 23 banner (4 bits a 
 .p:     ld a,(hl) : nextreg REG_PAL_VAL8,a : inc hl : djnz .p
         xor a : ld (lg_r),a
 .row:   push hl
-        ld e,46 : ld a,(lg_r) : call l2_row_addr
+        ld e,49 : ld a,(lg_r) : call l2_row_addr
         pop hl : ld ixl,82
 .byte:  ld a,(hl) : inc hl : ld c,a
         rrca : rrca : rrca : rrca : and 15 : jr z,.s1
