@@ -142,6 +142,7 @@ int main(int argc,char**argv){
           if(g9>=140&&!did2){ did2=1; dump("build/fin_a.ppm"); }
           if(g9>=160&&!did3){ did3=1; pk(symaddr("laps_done"),6); pk(symaddr("best_tenths"),147); pk(symaddr("best_tenths")+1,0); }
           if(g9>=170 && g9%3==0){ char fn[64]; sprintf(fn,"build/fr_%03d.ppm",g9); dump(fn); } }
+        if(mode==8 && ph==0 && ls==0 && getenv("PRACT")){ static int gp=0; gp++; if(gp==60){ unsigned L_=symaddr("lap_tenths"); pk(L_,0x2C); pk(L_+1,0x01); pk(A_LP,200); } if(gp==200) wr(0,symaddr("race_over"),1); if(gp==330) dump("build/res0.ppm"); if(gp==335) frames=1000000; }
         if(mode==8 && ph==1 && ls==0){ gcount++; if(gcount==40){ unsigned L_=symaddr("lap_tenths"); pk(L_,0x2C); pk(L_+1,0x01); pk(A_LP,200); } { static int fl=0; unsigned LS=symaddr("lap_show"); int v=rd(0,LS); if(v&&!fl) fl=gcount; if(fl&&gcount==fl+20) dump("build/lapflash.ppm"); if(fl&&gcount==fl+v+0&&0){} if(fl&&gcount==fl+160) dump("build/lapflash3.ppm"); } if(gcount==300) dump("build/lapflash2.ppm"); if(gcount==100){ dump("build/rc_race.ppm"); } if(gcount==400){ wr(0,symaddr("race_over"),1); } if(gcount==415) dump("build/res1.ppm"); }
       }
       if(startedrace && mode==7 && frames>=r0){ /* residue check: spin heading in place, compare screen with clean copy outside the car box */

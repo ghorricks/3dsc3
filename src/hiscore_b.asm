@@ -551,6 +551,7 @@ pg_x13: push bc : ld h,d : ld l,e : call .m : ex de,hl          ; DE = dx x 1.31
 ; ---- the number board (moved here from the main code): white frame, black face, the track number, on a short post.
 ; Track 26 (DEBUG) has a narrow board (20 px) that fits into the infield; the others are 32 px wide.
 pg_board:
+        call pg_brdg
         ld hl,(meta_ptr) : ld de,9 : add hl,de
         ld a,(hl) : ld (bd_col),a : inc hl : ld a,(hl) : ld (bd_row),a
         ld a,(bd_col) : add a,a : add a,a : add a,a : ld (bd_px),a
@@ -570,6 +571,31 @@ pg_board:
         ld a,(bd_row) : ld (txt_row),a
         ld a,(track_idx) : inc a
         jp print_dec2
+
+; ---- track 28: the fences along both sides of the bridge (the deck's lane crosses the underpass) are the lane's own fence lines carried across, with a shadow on the road beside them for the height
+bs_x:   db 0
+bs_y:   db 0
+bs_dy:  db 0
+pg_brdg:
+        ld a,(track_idx) : cp 27 : ret nz
+        ld a,56 : ld (bs_dy),a
+.r:     ld a,(bs_dy) : and 7 : add a,44 : ld (bs_y),a        ; the same pixels from a clean stretch of the lane fence further up
+        ld a,72 : call bs_cp
+        ld a,119 : call bs_cp
+        ld b,73
+.s1:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 79 : jr c,.s1
+        ld b,113
+.s2:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 119 : jr c,.s2
+        ld hl,bs_dy : inc (hl) : ld a,(hl) : cp 80 : jr c,.r
+        ret
+bs_cp:  ld (bs_x),a : ld e,a : ld a,(bs_y) : call l2_row_addr : ld a,(de) : ld b,a
+        ld a,(bs_x) : ld e,a : ld a,(bs_dy) : call l2_row_addr : ld a,b : ld (de),a
+        ret
+bs_sh:  ld (bs_x),a : ld e,a : ld a,(bs_dy) : call l2_row_addr
+        ld a,(bs_x) : ld hl,bs_dy : add a,(hl) : and 1 : ret nz      ; a chequerboard of the wall colour over plain road
+        ld a,(de) : cp 2 : ret nz
+        ld a,1 : ld (de),a
+        ret
 
 t26_tab: dup 20 : db "3DSC3",$0F,$27,1 : edup                    ; track 26 (DEBUG): a blank table that is never saved
 hsb_end:

@@ -1623,7 +1623,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112111",0
+s_ver: db "26112112",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1738,7 +1738,30 @@ code_end:
             ASSERT code_end <= $BA00                    ; the main code must stay below the IM2 vector table
             ORG $BA00
 mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
-            ORG $BB01
+            ORG $BB01                               ; spare bytes between the IM2 table and its jump: the bridge of track 28
+br_z:                                                   ; B = x, C = y, E = heading -> A = 0 outside the bridge, 1 on the deck (vertical lane), 2 under it (horizontal lane)
+            ld a,(track_idx) : cp 27 : jr nz,.no
+            ld a,b : sub 66 : cp 61 : jr nc,.no
+            ld a,c : sub 56 : cp 25 : jr nc,.no
+            ld a,e : add a,4 : and 15 : cp 8 : ld a,1 : ret nc
+            inc a : ret
+.no:        xor a : ret
+br_t:       db 0
+br_enc:                                                 ; once a frame, from cars_collide: byte 3 of each car's buffer entry = layer mask (3 = anywhere else, 1 = deck, 2 = underpass: cars on different layers do not touch)
+            ld hl,br_t : inc (hl)
+            ld hl,cc_buf : ld ix,cpu_t : ld d,CPU_N
+.l:         ld a,(hl) : ld b,a : inc hl : ld a,(hl) : ld c,a : inc hl : inc hl
+            ld a,(hl) : or a : jr z,.n
+            ld e,(ix+4) : call br_z : or a : jr nz,.s
+            ld a,3
+.s:         ld (hl),a
+.n:         inc hl : push de : ld de,CPU_SZ : add ix,de : pop de : dec d : jr nz,.l
+            ret
+br_draw:                                                ; instead of draw_car: cars flash while they are on the bridge
+            ld a,(car_x+1) : ld b,a : ld a,(car_y+1) : ld c,a : ld a,(heading) : ld e,a
+            call br_z : or a : jp z,draw_car
+            ld a,(br_t) : and 2 : jp z,draw_car
+            ret
             ORG $BBBB
             JP mus_isr
 track_tab:

@@ -555,6 +555,7 @@ cars_collide:
         ld a,1
 .ia:    ld (hl),a : inc hl
         ld de,CPU_SZ : add ix,de : djnz .f
+        call br_enc
         ld hl,cc_pairs : ld b,6
 .p:     push bc
         ld e,(hl) : inc hl : ld d,(hl) : inc hl : push de : pop ix
@@ -635,7 +636,7 @@ draw_all:                                           ; nearest the top of the scr
         ld a,c : cp 255 : jr z,.nx
         ld a,d : ld e,a : ld d,0 : ld hl,ord_y : add hl,de : ld (hl),255
         ld a,e : ld d,a : ld e,CPU_SZ : mul d,e : ld ix,cpu_t : add ix,de
-        call cpu_swap : call draw_car : call cpu_swap
+        call cpu_swap : call br_draw : call cpu_swap
 .nx:    pop bc : djnz .round
         ret
 
