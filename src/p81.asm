@@ -277,7 +277,7 @@ sc_dc:                                                          ; HL = column of
         push hl : ld de,(sc_lpx) : or a : sbc hl,de : pop hl : jr nc,.bl
         ld a,l : and 7 : ld (sc_k),a
         srl h : rr l : srl h : rr l : srl h : rr l
-        ld h,0 : ld de,msg_buf : add hl,de : ld a,(hl)
+        ld de,msg_buf : add hl,de : ld a,(hl)
         sub 32 : jr c,.sp : cp 64 : jr c,.ok
 .sp:    xor a
 .ok:    ld l,a : ld h,0 : add hl,hl : add hl,hl : add hl,hl : ld de,font : add hl,de
