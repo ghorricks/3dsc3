@@ -438,24 +438,25 @@ sv_name:    db "3DSC3.SAV",0
 
 
 ; ---- main menu title logo: yellow bold letters with a red drop shadow
-pg_logo:                                            ; 172 x 24 banner (2 bits a pixel, three colours: palette 43-45), top centre
+pg_logo:                                            ; 164 x 23 banner (4 bits a pixel, 15 colours: palette 101-115), top centre
         nextreg REG_MMU6,LOGO_PG
         nextreg REG_PAL_CTRL,$10
-        nextreg REG_PAL_IDX,43
-        ld hl,lg2_dat+1
-        ld a,(hl) : nextreg REG_PAL_VAL8,a : inc hl
-        ld a,(hl) : nextreg REG_PAL_VAL8,a : inc hl
-        ld a,(hl) : nextreg REG_PAL_VAL8,a : inc hl
+        nextreg REG_PAL_IDX,101
+        ld hl,lg2_dat+1 : ld b,15
+.p:     ld a,(hl) : nextreg REG_PAL_VAL8,a : inc hl : djnz .p
         xor a : ld (lg_r),a
 .row:   push hl
-        ld e,42 : ld a,(lg_r) : call l2_row_addr
-        pop hl : ld ixl,43
-.byte:  ld c,(hl) : inc hl : ld b,4
-.px:    ld a,c : rlca : rlca : ld c,a : and 3 : jr z,.sk
-        add a,42 : ld (de),a
-.sk:    inc e : djnz .px
+        ld e,46 : ld a,(lg_r) : call l2_row_addr
+        pop hl : ld ixl,82
+.byte:  ld a,(hl) : inc hl : ld c,a
+        rrca : rrca : rrca : rrca : and 15 : jr z,.s1
+        add a,100 : ld (de),a
+.s1:    inc e
+        ld a,c : and 15 : jr z,.s2
+        add a,100 : ld (de),a
+.s2:    inc e
         dec ixl : jr nz,.byte
-        ld a,(lg_r) : inc a : ld (lg_r),a : cp 24 : jr c,.row
+        ld a,(lg_r) : inc a : ld (lg_r),a : cp 23 : jr c,.row
         ret
 lg_c:   db 0
 lg_x:   db 0

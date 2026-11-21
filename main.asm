@@ -1624,7 +1624,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112114",0
+s_ver: db "26112115",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1804,7 +1804,6 @@ font:       INCBIN "build/font.bin"                     ; after the IM2 table an
             ASSERT $ < $E000
             MMU 6, 81
             ORG $C000
-            INCBIN "build/logo.bin"
             INCLUDE "src/insdata.asm"
 car_pat:    INCBIN "build/cars.bin"
             INCLUDE "src/p81.asm"                   ; 32 headings x 80 bytes (the page holding the logo has room: main code was running past $BFFF)
