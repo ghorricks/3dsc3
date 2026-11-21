@@ -138,13 +138,12 @@ grid_pos:                                           ; C = slot -> IX x,y and hea
         ret
 
 draw_grid:                                          ; a "[" slot marking behind the front of each starting position (open towards the line)
+        ld a,(track_idx) : cp 26 : ret z                ; Track 27: the start sits at an odd angle, no slot markings
         ld c,0
 .k:     push bc
         ld a,c : ld e,a : ld d,0 : ld hl,ctl : add hl,de : ld a,(hl)
         cp 7 : jp nc,.nx                              ; UNWANTED: no slot
-        cp 6 : jr c,.ok
-        ld a,(track_idx) : cp 27 : jp nc,.nx          ; computer cars only race on tracks 1 to 14 for now
-.ok:    call grid_calc
+        call grid_calc
         ld a,(g_x) : ld (sl_x+1),a : ld a,(g_y) : ld (sl_y+1),a : ld a,$80 : ld (sl_x),a : ld (sl_y),a
         ld a,(sl_h) : add a,16 : and 31 : call sl_vec
         ld a,(sl_h) : call sl_vec
