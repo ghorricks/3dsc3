@@ -150,8 +150,15 @@ ty:         db 0
 tk:         db 0
 pg_mhead:   call init_hw                                     ; game palette back (the title picture sets its own)
             ld a,3 : ld (txt_fg),a
-            call by_draw                                     ; By Gavin Horricks (mixed case strip, one character right of the old centring)
+            ld a,(sc_st) : dec a : jr nz,.cr                 ; messages already under way: carry on (redraw the strip as it was), never back to the credit
+            ld a,(sc_s) : ld l,a : ld a,(sc_s+1) : ld h,a
+            ld de,256 : or a : sbc hl,de                     ; HL = first column on screen (negative = blank)
+            ld c,0
+.rs:        push hl : push bc : call sc_dc : pop bc : pop hl : inc hl : inc c : jr nz,.rs
+            jr .cd
+.cr:        call by_draw                                     ; By Gavin Horricks (mixed case strip, one character right of the old centring)
             xor a : ld (sc_st),a : ld (sc_t),a              ; the message line starts again from the credit
+.cd:
             ld a,3 : ld (txt_fg),a                           ; bottom centre: VERSION : build
             ld b,7 : ld c,23 : ld hl,s_vlab : call print_at
             ld b,17 : ld c,23 : ld hl,s_ver : call print_at
