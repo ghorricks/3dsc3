@@ -291,3 +291,4 @@ sc_dc:                                                          ; HL = column of
         ld a,(sc_r) : inc a : ld (sc_r),a : cp 8 : jr c,.r
         ret
 .bl:    xor a : ld (sc_k),a : jr .ok
+msg_buf:    ds 504                                          ; the scrolling messages from the server (up to 500 characters, 0-terminated; empty = none)

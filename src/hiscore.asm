@@ -228,17 +228,26 @@ nb_dg:      ld a,'0'                                           ; HL / BC -> digi
 nb_end:     ld hl,s_c5 : call nb_put                           ; reply goes to a file, read back with esxDOS
             ld a,13 : ld (de),a : inc de : xor a : ld (de),a : ret
 
-msg_grab:                                                       ; the reply is at $C000: skip line 1, keep line 2 (up to 190 characters) in msg_buf
-        xor a : ld (msg_buf),a
+msg_grab:                                                       ; the reply is at $C000: skip line 1, keep line 2 (up to 500 characters) in msg_buf (page 81)
         ld hl,$C000 : ld b,255
 .f:     ld a,(hl) : inc hl : cp 10 : jr z,.g
-        or a : ret z
+        or a : jr z,.n
         djnz .f
+.n:     nextreg REG_MMU6,LOGO_PG : xor a : ld (msg_buf),a : nextreg REG_MMU6,NET_PG
         ret
-.g:     ld de,msg_buf : ld b,180
-.c:     ld a,(hl) : inc hl : cp 32 : jr c,.e
-        ld (de),a : inc de : djnz .c
-.e:     xor a : ld (de),a : ret
+.g:     ld de,msg_buf : ld (mg_d),de : ld a,4
+.k:     ld (mg_c),a
+        ld de,nb : ld bc,125 : ldir                                ; a piece through main memory (the two pages cannot be mapped together)
+        push hl
+        nextreg REG_MMU6,LOGO_PG
+        ld hl,nb : ld de,(mg_d) : ld bc,125 : ldir : ld (mg_d),de
+        nextreg REG_MMU6,NET_PG
+        pop hl
+        ld a,(mg_c) : dec a : jr nz,.k
+        nextreg REG_MMU6,LOGO_PG : ld hl,(mg_d) : ld (hl),0 : nextreg REG_MMU6,NET_PG
+        ret
+mg_d:   dw 0
+mg_c:   db 0
 net_clear:  nextreg REG_MMU6,NET_PG                            ; reply bank at $C000
             ld hl,$C000 : ld de,$C001 : ld bc,511 : ld (hl),0 : ldir
             ret

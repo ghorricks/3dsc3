@@ -1623,7 +1623,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112106",0
+s_ver: db "26112107",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1739,7 +1739,6 @@ code_end:
             ORG $BA00
 mus_vec:    ds 257,$BB                                  ; IM2 table: every vector points at $BBBB
             ORG $BB01
-msg_buf:    ds 186                                      ; the scrolling messages from the server (up to 180 characters, 0-terminated; empty = none): fits in the gap before the vector target
             ORG $BBBB
             JP mus_isr
 track_tab:
