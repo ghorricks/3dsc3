@@ -88,7 +88,7 @@ menu_in:
         ld bc,PORT_KEMP2 : call .p
         ld bc,$BFFE : in a,(c) : bit 0,a : jr nz,.n
         set BST,e
-.n:     ld a,e : ret
+.n:     ld a,e : jp menu_res                        ; (cursor arrows press two keys at once: sorted out there)
 .k:     push de : call read_kbd : pop de : or e : ld e,a : ret
 .p:     in a,(c) : ld d,a
         bit PAD_U,d : jr z,.q1

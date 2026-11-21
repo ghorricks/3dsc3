@@ -1624,7 +1624,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112120",0
+s_ver: db "26112121",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1769,6 +1769,12 @@ br_one:                                                 ; from ai_scan: another 
             ld b,(ix+1) : ld c,(ix+3) : ld e,(ix+4) : call br_z : or a : jr z,.o
             cp d : ret nz
 .o:         ld b,(iy+1) : ld c,(iy+3) : ld a,(iy+5) : jp ai_one
+menu_res:                                               ; the Next's cursor arrows (Caps Shift + 5 6 7 8) also press keys of the other key sets: right = 8 + (6-0 down), left = 5 + (1-5 fire), up = 7 + (6-0 right), down = 6 + (6-0 left): the arrow wins
+            ld hl,mr_t : ld b,4
+.l:         cp (hl) : jr z,.f : inc hl : inc hl : djnz .l
+            ret
+.f:         inc hl : ld a,(hl) : ret
+mr_t:       db (1<<RGT)|(1<<DWN),1<<RGT, (1<<LFT)|(1<<BST),1<<LFT, (1<<ACC)|(1<<RGT),1<<ACC, (1<<DWN)|(1<<LFT),1<<DWN
             ORG $BBBB
             JP mus_isr
 track_tab:
