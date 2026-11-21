@@ -582,10 +582,10 @@ pg_brdg:
 .r:     ld a,(bs_dy) : and 7 : add a,44 : ld (bs_y),a        ; the same pixels from a clean stretch of the lane fence further up
         ld a,72 : call bs_cp
         ld a,119 : call bs_cp
-        ld b,73
-.s1:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 79 : jr c,.s1
-        ld b,113
-.s2:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 119 : jr c,.s2
+        ld b,65
+.s1:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 72 : jr c,.s1      ; the shadow falls on the road that runs under the deck: outside each fence
+        ld b,121
+.s2:    ld a,b : push bc : call bs_sh : pop bc : inc b : ld a,b : cp 128 : jr c,.s2
         ld hl,bs_dy : inc (hl) : ld a,(hl) : cp 80 : jr c,.r
         ret
 bs_cp:  ld (bs_x),a : ld e,a : ld a,(bs_y) : call l2_row_addr : ld a,(de) : ld b,a

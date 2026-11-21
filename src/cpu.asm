@@ -493,7 +493,7 @@ ai_scan:
         ld a,CPU_N : ld (ai_n),a : ld iy,cpu_t
 .l:     push iy : pop de : push ix : pop hl : or a : sbc hl,de : jr z,.skip
         ld a,(iy+23) : or a : jr z,.skip
-        ld b,(iy+1) : ld c,(iy+3) : ld a,(iy+5) : call ai_one
+        call br_one
 .skip:  ld de,CPU_SZ : add iy,de
         ld a,(ai_n) : dec a : ld (ai_n),a : jr nz,.l
         ret

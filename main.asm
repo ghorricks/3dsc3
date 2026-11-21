@@ -61,6 +61,7 @@ session:
 .frame: call wait_frame
         call restore_all                            ; cars and HUD are redrawn first, while the beam is still in the border / top: the game logic runs while the picture is drawn
         call draw_all
+        ld a,(lt_s) : or a : call nz,draw_light     ; the light goes on top of the cars every frame (a car erase over it used to make it flash)
         call hud_update
         call start_in
         bit STA,a : jr z,.nq
@@ -1274,7 +1275,7 @@ sl_tab: db -1,0,1,3, -2,0,1,3, -3,0,1,3, -4,0,1,3, -5,0,1,3, -6,0,1,3, -7,0,1,3,
         db -13,-1,3,14, -12,-2,5,14, -11,-2,5,14, -10,-1,3,14, -12,-1,1,15, $7F
 slh_t:  db 0,24,16,16,0,0, 20,20,20, 0,0,0, 16,20,20, 31,0, 0, 0, 24, 8                              ; start-line heading: tracks 8 (east), 9 (north), 10, 11 (west), 12, 13 (east)
 slax_t: db 1,0,100, 0,-1,50, -1,0,100, -1,0,100, 1,0,100, 1,0,100
-        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100, 1,0,100, 0,-1,100, 0,1,100
+        db -1,-1,100, -1,-1,100, -1,-1,100, 1,0,100, 1,0,100, 1,0,100, -1,0,100, -1,-1,100, -1,-1,100, 4,-1,255, 1,0,100, 1,0,100, 1,0,100, 0,-1,100, 0,1,36
 sl_lx: db 0
 sl_cx: db 0
 sl_cy: db 0
@@ -1623,7 +1624,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112112",0
+s_ver: db "26112113",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1757,11 +1758,17 @@ br_enc:                                                 ; once a frame, from car
 .s:         ld (hl),a
 .n:         inc hl : push de : ld de,CPU_SZ : add ix,de : pop de : dec d : jr nz,.l
             ret
-br_draw:                                                ; instead of draw_car: cars flash while they are on the bridge
+br_draw:                                                ; instead of draw_car: a car flashes while it is under the bridge
             ld a,(car_x+1) : ld b,a : ld a,(car_y+1) : ld c,a : ld a,(heading) : ld e,a
-            call br_z : or a : jp z,draw_car
+            call br_z : cp 2 : jp nz,draw_car                   ; only the car going under flashes
             ld a,(br_t) : and 2 : jp z,draw_car
             ret
+br_one:                                                 ; from ai_scan: another car (IY) is an obstacle for this one (IX) unless one is on the deck and the other under it
+            ld b,(iy+1) : ld c,(iy+3) : ld e,(iy+4) : call br_z : ld d,a
+            or a : jr z,.o
+            ld b,(ix+1) : ld c,(ix+3) : ld e,(ix+4) : call br_z : or a : jr z,.o
+            cp d : ret nz
+.o:         ld b,(iy+1) : ld c,(iy+3) : ld a,(iy+5) : jp ai_one
             ORG $BBBB
             JP mus_isr
 track_tab:
