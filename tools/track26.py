@@ -6,6 +6,9 @@ src=sys.argv[1]; N=int(sys.argv[4]) if len(sys.argv)>4 else 26
 a=np.array(Image.open(src).convert("RGB")).astype(int)
 road=(a.sum(2)==0)|((a[...,0]>150)&(a[...,1]<60)&(a[...,2]<60))      # black tarmac, plus the red start pole and car sprites
 road[:16]=False; road[184:]=False
+import os
+for r in os.environ.get('FILL','').split(';'):   # y0,y1,x0,x1 rectangles forced to road (e.g. the passage under a bridge, drawn as grass bank in the original)
+    if r: y0,y1,x0,x1=map(int,r.split(',')); road[y0:y1,x0:x1]=True
 road=ndi.binary_opening(road,structure=np.ones((5,5)))            # drops the speckles in the grass and the thin rail strip
 road=ndi.binary_closing(road,structure=np.ones((5,5)))            # removes the cars' sprites
 from skimage.morphology import remove_small_holes

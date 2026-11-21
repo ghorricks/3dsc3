@@ -70,7 +70,7 @@ pg_dbgk:
         inc a : ld (dbg_dn),a
         ld a,(dbg_viz) : xor 1 : ld (dbg_viz),a
         ld b,25 : jr z,.off
-        ld b,27
+        ld b,28
 .off:   ld a,b : ld (trk_max),a
         cp 26 : jr nc,.mk                                               ; off: a track of the extra ones is not on offer any more
         ld a,(track_idx) : cp 25 : jr c,.mk

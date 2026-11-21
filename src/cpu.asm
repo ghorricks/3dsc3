@@ -38,7 +38,7 @@ init_cpu:                                           ; set up the four cars from 
         cp 7 : jr nc,.md
         ld b,1 : cp 6 : jr c,.md
         ld b,2
-        ld a,(track_idx) : cp 27 : jr c,.md           ; lane paths exist for tracks 1 to 14
+        ld a,(track_idx) : cp 28 : jr c,.md           ; lane paths exist for tracks 1 to 14
         ld b,0                                        ; no lane path on this track yet: the computer sits out
 .md:    ld (ix+23),b
         ld (ix+14),$0F : ld (ix+15),$27 : ld (ix+18),$18 : ld (ix+19),$FC     ; best 99.9, line distance far behind

@@ -23,7 +23,7 @@ def _lane14(L):                          # track 14: the lane of the original (w
     G=ndi.binary_dilation(L0,structure=_dk(6))&(Z>0)
     return ndi.binary_opening(np.pad(L0|G,8),structure=_dk(3))[8:-8,8:-8]|L0
 WIDEN={11:_user_lane,14:_lane14}
-EXACT=set(range(1,28))
+EXACT=set(range(1,29))
 INFILL=set()
 CLOCKWISE={5,6,7,8,12,13,14}          # tracks the original runs clockwise round the screen
 PATHS={}
@@ -38,7 +38,7 @@ import surfaces as SFX                    # TRACK / DIRT / ICE / SAND, assigned 
 SURFRGB={0x49:(70,70,70),0xB4:(182,182,0),0xB6:(180,180,180),0x88:(145,72,0)}
 CROSS=np.array([[0,1,0],[1,1,1],[0,1,0]],bool)
 TWOLEG={20:(177,180),27:(134,112)}                     # (y,x) of a free point behind the start: serpentine lap, farthest point is mid-lap
-VIA={16:[(38,85),(21,66),(36,44),(68,31),(105,27),(136,42),(174,37),(206,50),(231,67),(214,89),(230,110),(216,130),(187,146),(159,161),(128,175),(89,173),(59,159),(30,152),(17,138),(24,124),(42,123),(62,130),(95,136),(125,141),(150,130),(172,112),(160,104),(148,104),(135,107),(110,103),(92,101)],23:[(150,34),(196,57),(208,100),(221,124),(233,150),(216,164),(175,167),(127,171),(60,152),(35,110),(25,72),(50,48),(80,44)],11:[(150,177),(100,160),(60,140),(37,125),(32,108),(37,100),(80,100),(127,98),(180,99),(218,99),(224,90),(200,70),(150,45),(112,23),(60,23),(35,30),(30,45),(40,58),(80,61),(112,61),(120,80),(127,98),(135,120),(143,138),(190,138),(215,145),(224,155),(215,172),(200,177)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
+VIA={28:[(160,125),(150,136),(125,137),(106,128),(105,100),(105,62),(105,40),(112,29),(160,28),(205,28),(224,60),(224,100),(224,140),(210,166),(150,172),(80,172),(40,162),(30,130),(30,95),(40,68),(60,62),(105,62),(140,62),(160,72),(160,92)],16:[(38,85),(21,66),(36,44),(68,31),(105,27),(136,42),(174,37),(206,50),(231,67),(214,89),(230,110),(216,130),(187,146),(159,161),(128,175),(89,173),(59,159),(30,152),(17,138),(24,124),(42,123),(62,130),(95,136),(125,141),(150,130),(172,112),(160,104),(148,104),(135,107),(110,103),(92,101)],23:[(150,34),(196,57),(208,100),(221,124),(233,150),(216,164),(175,167),(127,171),(60,152),(35,110),(25,72),(50,48),(80,44)],11:[(150,177),(100,160),(60,140),(37,125),(32,108),(37,100),(80,100),(127,98),(180,99),(218,99),(224,90),(200,70),(150,45),(112,23),(60,23),(35,30),(30,45),(40,58),(80,61),(112,61),(120,80),(127,98),(135,120),(143,138),(190,138),(215,145),(224,155),(215,172),(200,177)],10:[(100,28),(36,50),(128,100),(222,150),(128,176),(36,150),(128,100),(222,50),(185,31)]}   # figure-8: the lap is not the farthest-away route
 def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     """lane centreline = least-cost route start -> far end of the lap, cost grows near walls; sampled every ~6 px, smoothed"""
     from skimage.graph import route_through_array
@@ -72,8 +72,8 @@ def make_path(dist,solid,start,H,W,maxn=250,wide=False,via=None,twoleg=None):
     return [p[0] for p in out],[p[1] for p in out],len(out)
 
 meta=[]; PREV=[]
-PERP_N={27:26,26:26,25:26,9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
-for n in range(1,28):
+PERP_N={28:26,27:26,26:26,25:26,9:24,13:26,15:26,16:26,17:26,18:26,19:26,20:26,21:26,22:26,23:26,24:26}
+for n in range(1,29):
     EX=n in EXACT; PERP=PERP_N.get(n,70)
     H,W=(192,256) if EX else (174,254); C.H,C.W=H,W
     if EX:
@@ -224,7 +224,7 @@ for n in range(1,28):
         base=_nb; ground=_ng
     solid=ndi.binary_dilation(base,structure=CROSS)|~ground
     if os.path.exists(B+f'tex{n}.npy') and not _edited: _t=np.load(B+f'tex{n}.npy'); solid=solid|_t; ground=ground&~_t     # slab tops: no road, no ground
-    if 7<=n<=27: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
+    if 7<=n<=28: np.save(B+f'solid{n}.npy',solid); np.save(B+f'ground{n}.npy',ground); np.save(B+f'basef{n}.npy',base)
     wc=ZXRGB[7]                                                    # every fence is white, as on track 1 (the Spectrum original needed different colours)
     # ---- start: nearest roomy open pixel
     sx0,sy0=info[str(n)]["start"]
@@ -289,7 +289,7 @@ for n in range(1,28):
         return c
     cands=[(sray(h),-min((h-h0)%NH,(h0-h)%NH),h) for h in range(NH) if min((h-h0)%NH,(h0-h)%NH)<=4]
     head=max(cands)[2] if max(cands)[0]>=10 else max((sray(h),h) for h in range(NH))[1]
-    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0,27:24}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
+    head={7:31,11:16,14:20,15:20,16:20,17:0,18:0,19:0,20:16,21:20,22:20,23:0,24:0,25:0,26:0,27:24,28:8}.get(n,head)                       # lane direction fixed where the fences are not axis-aligned
     def pbfs(head):
         """pixel-level 4-connected flood from the start; a car centre can only move through non-solid pixels"""
         blocked=np.zeros((H,W),bool)
@@ -342,7 +342,7 @@ for n in range(1,28):
     ground=ndi.binary_dilation(_comp,iterations=1)&ground
     gp=np.zeros((192,256),bool); gp[:H,:W]=ground
     bp=np.zeros((192,256),bool); bp[:H,:W]=base
-    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=27 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
+    px,py,npts=make_path(DIST,solid,(sx,sy),H,W,wide=(6<=n<=28 and n!=11),via=VIA.get(n),twoleg=TWOLEG.get(n))
     PATHS[n]=(px,py)
     if os.environ.get("DUMPP"): print("P",n,npts,list(zip(px,py)) if str(n) in os.environ["DUMPP"].split(",") else "")
     page=bytearray(16384); page[0:6144]=np.packbits(bp,axis=1).tobytes(); page[6144:12288]=np.packbits(gp,axis=1).tobytes(); page[12288:12288+CW*CH]=d.tobytes()
@@ -376,7 +376,7 @@ sheet=Image.new("RGB",(260*6+28,194*5+20),(40,40,40))
 for i,pv in enumerate(PREV): sheet.paste(Image.fromarray(pv),(4+(i%6)*260,4+(i//6)*194))
 sheet.save(B+"preview_filled.png")
 with open("/home/claude/stockcar/src/trackdata.asm","w") as f:
-    for n in range(27): f.write(f'    MMU 6 7, {32+2*n if n<24 else {24:90,25:94,26:26}[n]}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
+    for n in range(28): f.write(f'    MMU 6 7, {32+2*n if n<24 else {24:90,25:94,26:26,27:28}[n]}\n    ORG $C000\n    INCBIN "build/track{n+1:02d}.pg"\n')
 SPEEDK=12.5/14   # top speed scaled so track 1 lap is ~14 s (original), was 12.5 s
 # ---- speed table: NH headings x 16 levels -> (dx,dy) signed 8.8
 with open(B+"speed.inc","w") as f:
