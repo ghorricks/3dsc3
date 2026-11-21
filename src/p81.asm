@@ -147,6 +147,8 @@ idle_en:    db 0
 idle_vz:    db 0
 idle_cnt:   dw 0
 ty:         db 0
+ts_e:       db 0
+ttl_tab:    INCBIN "build/title_tab.bin"
 tk:         db 0
 pg_mhead:   call init_hw                                     ; game palette back (the title picture sets its own)
             ld a,3 : ld (txt_fg),a
@@ -184,13 +186,17 @@ pg_title:   push af
             nextreg REG_PAL_CTRL,$10                         ; Layer 2 first palette: the plain RGB332 ramp the picture was drawn for
             ld b,0 : xor a
 .pp:        nextreg REG_PAL_IDX,a : nextreg REG_PAL_VAL8,a : inc a : djnz .pp
-            ld a,TITLE_PG : nextreg REG_MMU7,a : ld hl,$E000
             xor a : ld (tk),a
-.pg:        ld a,(tk) : add a,a : add a,18 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a      ; Layer 2 bank k (16 KB) at $0000
-            ld a,(tk) : cp 2 : jr nz,.sm
-            ld a,TITLE_PG+1 : nextreg REG_MMU7,a : ld hl,$E000                                   ; the third bank's stream is in the second page
-.sm:        ld de,0 : call lz_dec
-            ld a,(tk) : inc a : ld (tk),a : cp 3 : jr c,.pg
+.pg:        ld a,(tk) : srl a : add a,a : add a,18 : nextreg REG_MMU0,a : inc a : nextreg REG_MMU1,a   ; Layer 2 bank k/2 (16 KB) at $0000, piece k&1 = its half
+            ld a,(tk) : and 1 : rrca : rrca : rrca : ld d,a : add a,$20 : ld (ts_e),a : ld e,0
+            ld a,(tk) : add a,a : ld c,a : ld b,0 : ld hl,ttl_tab : add hl,bc
+            ld c,(hl) : inc hl : ld a,(hl) : ld b,a                ; word: page index in the top 3 bits, address in $E000.. below
+            rlca : rlca : rlca : and 7 : add a,TITLE_PG : cp TITLE_PG+2 : jr c,.pn
+            ld a,30                                          ; the third page
+.pn:        nextreg REG_MMU7,a
+            ld a,b : and $1F : or $E0 : ld h,a : ld l,c
+            call lz_dec
+            ld a,(tk) : inc a : ld (tk),a : cp 6 : jr c,.pg
             pop af : or a : ret z                            ; start-up: leave it on screen
             ld a,1 : ld (ttl_on),a
             ld hl,500                                        ; 10 s, or any key
@@ -208,7 +214,7 @@ lz_dec:     ld ixl,$80                                        ; bit buffer empty
             ld a,b : and 15 : add a,3 : ld c,a : ld b,0
             push de : ex de,hl : or a : sbc hl,de : pop de      ; HL = dest - offset
             ldir : pop hl
-.c:         ld a,d : cp $40 : jr c,.l                          ; one 16 KB bank done
+.c:         ld a,(ts_e) : cp d : jr nz,.l                      ; one 8 KB piece done
             ret
 .gb:        ld a,ixl : add a,a : jr nz,.g1
             ld a,(hl) : inc hl : rla

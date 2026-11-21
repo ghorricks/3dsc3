@@ -1511,7 +1511,7 @@ snd_imp:                                            ; 6 frames of noise on B (vo
         dec a : ld (snd_hit),a
         cp 6 : jr c,.fin
         push af : ld e,$22 : ld a,7 : call ay_write : ld e,20 : ld a,6 : call ay_write : pop af
-        sub 2 : ld e,a : ld a,9 : jp ay_write
+        sub 2 : ld e,a : srl a : add a,e : ld e,a : ld a,9 : jp ay_write      ; crash 9 down to 4, +50%
 .fin:   cp 5 : ret nz
         ld e,12 : ld a,6 : jp ay_write
 snd_hit:    db 0
@@ -1541,7 +1541,7 @@ sound_update0:                                      ; lead human car: engine not
         ld a,8 : ld e,0 : call ay_write : jr .scr    ; no human car: channel A silent
 .got:   ld (snd_lead),ix
         ld a,(ix+5) : ld e,0 : or a : jr z,.vol
-        rrca : rrca : rrca : rrca : and 15 : srl a : srl a : add a,4 : ld e,a     ; quieter than before (was level/2 + 5)
+        rrca : rrca : rrca : rrca : and 15 : srl a : srl a : add a,4 : ld e,a : srl a : add a,e : ld e,a     ; engine volume 4-8, then +50% (6-12)
 .vol:   ld a,8 : call ay_write
         ld a,(ix+5) : rrca : rrca : rrca : rrca : and 15
         ld l,a : ld h,0
@@ -1563,7 +1563,7 @@ sound_update0:                                      ; lead human car: engine not
         and 3 : add a,a : add a,a : add a,150 : ld e,a : ld a,2 : call ay_write      ; a lower note (period 150-162) with a small wobble (snd_w: own frame counter - fcnt belongs to the per-car context and is swapped every frame)
         ld a,3 : ld e,0 : call ay_write
         ld a,(snd_w) : and 15 : cp 5 : ld e,0 : jr c,.on                              ; sliding: a gap of 5 frames (a tenth of a second) in every 16, the squeal carries on in between
-        ld e,9
+        ld e,13                                                                       ; tyre squeal 9, +50%
 .on:    ld a,9 : jp ay_write
 .quiet: ld a,7 : ld e,$32 : call ay_write
         ld a,9 : ld e,0 : jp ay_write
@@ -1624,7 +1624,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112116",0
+s_ver: db "26112117",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1815,6 +1815,9 @@ car_pat:    INCBIN "build/cars.bin"
             MMU 7, TITLE_PG+1
             ORG $E000
             INCBIN "build/title_b.lz"
+            MMU 7, 30
+            ORG $E000
+            INCBIN "build/title_c.lz"
 
 
             SAVENEX OPEN "stockcar.nex", start, dc_lut

@@ -56,3 +56,18 @@ def build(src,outprefix):
     open(outprefix+"_b.lz","wb").write(ss[2])            # page 2: bank 2
     return [len(x) for x in ss]
 if __name__=="__main__": print(build(sys.argv[1],sys.argv[2]))
+
+def build6(src,outprefix):
+    """full-colour title: six 8 KB pieces (32 rows each), packed two to a page; a table gives each piece's page index (0,1,2 = pages 24,25,30) and address"""
+    d=open(src,'rb').read()[:49152]
+    z=[pack(d[k*8192:(k+1)*8192]) for k in range(6)]
+    for k in range(6): assert unpack(z[k],8192)==d[k*8192:(k+1)*8192]
+    plan=[[3,0],[4,2],[1,5]]; tab=[0]*6; names="abc"
+    for p,ks in enumerate(plan):
+        blob=b""
+        for k in ks:
+            w=(p<<13)|len(blob); tab[k]=w; blob+=z[k]
+        assert len(blob)<=8192,(p,len(blob))
+        open(outprefix+"_%s.lz"%names[p],"wb").write(blob)
+    open(outprefix+"_tab.bin","wb").write(b"".join(bytes([w&255,w>>8]) for w in tab))
+    return [len(x) for x in z]
