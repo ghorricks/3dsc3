@@ -91,6 +91,7 @@ gc_w:   db 0
 
 grid_calc:                                          ; C = slot -> g_x,g_y,gp_lat : two cars a row, rows behind the line
         call grid_centre
+        ld a,(track_idx) : cp 26 : ld a,10 : jr z,.dl   ; Track 27: its first bend is tight, the cars of a row start close together (no drifting into the outer fence)
         ld a,(gc_w) : cp 70 : ld a,24 : jr nc,.dl
         ld a,18                                       ; a narrow road: the two cars of a row sit closer together
 .dl:    ld (gp_lat),a
@@ -118,7 +119,7 @@ grid_calc:                                          ; C = slot -> g_x,g_y,gp_lat
 .l2:    and 31 : call sl_vec
 .lt:    call sl_adv : djnz .lt
 .nl:    ld a,(sl_x+1) : ld (g_x),a : ld a,(sl_y+1) : ld (g_y),a
-        ld a,(g_y) : ld d,a : ld a,(g_x) : ld e,a : call solid_at : ret nc
+        ld de,(g_x) : call solid_at : ret nc
         ld a,(gp_lat) : or a : jr z,.fb
         cp 15 : ld a,14 : jr nc,.set                  ; too tight: narrower grid, then single file
         xor a
