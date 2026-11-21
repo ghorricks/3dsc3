@@ -69,7 +69,7 @@ pg_dbgk:
         ld a,(dbg_dn) : or a : ret nz                                   ; only a new press counts
         inc a : ld (dbg_dn),a
         ld a,(dbg_viz) : xor 1 : ld (dbg_viz),a
-        ld b,25 : jr z,.off
+        ld b,28 : jr z,.off                                             ; tracks 26-28 are out of debug: always on offer
         ld b,28
 .off:   ld a,b : ld (trk_max),a
         cp 26 : jr nc,.mk                                               ; off: a track of the extra ones is not on offer any more
