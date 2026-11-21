@@ -419,7 +419,7 @@ load_palette:                                       ; meta: +3 lo +4 mid +5 hi +
 map_track:                                          ; 16K bank 16+idx -> $C000-$FFFF
         ld a,(track_idx) : add a,a : add a,32
         cp 80 : jr c,.mp
-        sub 80 : srl a : ld e,a : ld d,0 : ld hl,mt_tab : add hl,de : ld a,(hl)     ; the last tracks live in spare pages: 25 -> 90, 26 (DEBUG) -> 94, 27 -> 26, 28 -> 28 (below the 2 MB banks: no 2 MB flag needed)
+        sub 80 : srl a : push hl : push de : ld e,a : ld d,0 : ld hl,mt_tab : add hl,de : ld a,(hl) : pop de : pop hl     ; the last tracks live in spare pages: 25 -> 90, 26 (DEBUG) -> 94, 27 -> 26, 28 -> 28 (below the 2 MB banks: no 2 MB flag needed)
 .mp:    nextreg REG_MMU6,a : inc a : nextreg REG_MMU7,a
         ret
 mt_tab: db 90,94,26,28
@@ -1624,7 +1624,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112117",0
+s_ver: db "26112118",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
