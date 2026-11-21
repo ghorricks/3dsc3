@@ -67,13 +67,13 @@ pn_tab      equ HS_NAMES
 pn_def:     db 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36, 0,36,36,36,36     ; just an "A" until a player types a name
 
 hs_ptr:                                             ; -> HL = first entry of the current track (track 26, DEBUG only, has no saved table: a blank one in page 93)
-        ld a,(track_idx) : cp 25 : jr c,.o : ld hl,t26_tab : ret
+        ld a,(track_idx) : cp 25 : jr c,.o
+        sub 25 : ld d,a : ld e,160 : mul d,e : ld hl,t26_tab : add hl,de : ret       ; tracks 26-28: three more tables in page 93 (saved behind the others)
 .o:
      ld d,a : ld e,160 : mul d,e : ld hl,HS_ENT : add hl,de
         ret
 
 hs_rank:                                            ; DE = hundredths -> A = place 0..19, or 20 when it does not make the table
-        ld a,(track_idx) : cp 25 : ld a,20 : ret nc                 ; track 26: no records
 
         push de : call hs_ptr : push hl : pop ix : pop de
         xor a : ld (hr_i),a
@@ -161,7 +161,7 @@ net_host:   db "3dsc3.silent-cloud-35d4.workers.dev",0
 s_c1:       db ".http -h ",0
 s_c5:       db " -f 3DSC3.TMP",0
 s_c2:       db " -u /?track=",0
-s_all:      db "all&n=20",0
+s_all:      db "all&n=20&max=28",0
 nb_all:     db 0
 nb_ver:     db 0
 s_cv:       db " -u /?version",0
@@ -278,7 +278,7 @@ oc_adr:                                                         ; E = track 0..2
             add hl,hl : add hl,hl : add hl,hl : add hl,hl : add hl,hl
             ld de,$C000 : add hl,de : ret
 oc_cur:     ds 160
-oc_cnt:     ds 25
+oc_cnt:     ds 28
 np_buf:     ds 8
 net_run:    call net_try : ret z                                ; A = 0 when a reply arrived
             ld a,(nb_all) : or a : call nz,net_retry                ; the machine is busy inside the WiFi command (nothing can animate): say it is trying again
@@ -300,7 +300,7 @@ net_unlink: nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF
 net_rd:     ld b,1 : ld ix,tmp_name : call sv_open2 : jr nc,.o
             ld (net_err),a : ld a,2 : ld (net_stage),a : ld a,1 : ret
 .o:
-            ld (sv_h),a : ld ix,$C000 : ld bc,8000 : rst 8 : db $9D : ld (net_len),bc : call sv_close
+            ld (sv_h),a : ld ix,$C000 : ld bc,8190 : rst 8 : db $9D : ld (net_len),bc : call sv_close
             ld hl,$C000 : ld bc,(net_len) : add hl,bc : ld (hl),0                        ; end of text
             ld a,($C000) : or a : jr z,.f
             xor a : ret
@@ -309,7 +309,7 @@ tmp_name:   db "3DSC3.TMP",0
 
 ; --- parse the ?track=all reply: "T,NAME,42.37" lines at $C000 (page 82) into the cache (page 83: 20 x 8 bytes per track; the counts are in oc_cnt)
 OC_PG       equ 83
-net_parse:  ld hl,oc_cnt : ld de,oc_cnt+1 : ld bc,24 : ld (hl),0 : ldir
+net_parse:  ld hl,oc_cnt : ld de,oc_cnt+1 : ld bc,27 : ld (hl),0 : ldir
             ld hl,$C000
 .ln:        ld a,(hl) : or a : ret z
             ld (np_ln),hl : ld d,0
@@ -318,7 +318,7 @@ net_parse:  ld hl,oc_cnt : ld de,oc_cnt+1 : ld bc,24 : ld (hl),0 : ldir
             ld e,a : ld a,d : add a,a : ld c,a : add a,a : add a,a : add a,c : add a,e : ld d,a
             inc hl : jr .td
 .tk:        inc hl : ld a,d : or a : jr z,.sk
-            dec a : cp 25 : jr nc,.sk
+            dec a : cp 28 : jr nc,.sk
             ld (np_t),a : ld e,a : ld d,0
             push hl : ld hl,oc_cnt : add hl,de : ld a,(hl) : pop hl
             cp 20 : jr nc,.sk                                  ; the table of a track holds 20 records
@@ -384,7 +384,8 @@ net_sync:   xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
             ld (sy_fail),a : jr .end
 .ok:        ld (ix+7),1 : ld a,1 : ld (sy_chg),a
 .nx:        ld de,8 : add ix,de : dec b : jp nz,.en
-            ld hl,ns_t : inc (hl) : ld a,(hl) : cp 25 : jp c,.tr
+            ld hl,ns_t : inc (hl) : ld a,(hl) : cp 25 : jr nz,.nj : ld ix,t26_tab      ; tracks 26-28 have their own tables
+.nj:        cp 28 : jp c,.tr
 .end:       nextreg REG_MMU6,HS_PGB                              ; the second page back (net_show lives there)
             ld a,(sy_fail) : or a : jr z,.sv
             call net_show : ld b,150
@@ -425,9 +426,12 @@ sv_open:    ld ix,sv_name
 sv_open2:   nextreg REG_MMU0,$FF : nextreg REG_MMU1,$FF      ; the esxDOS trap wants ROM at 0000-3FFF
             ld a,'*' : rst 8 : db $9A : ret
 sv_load:    ld b,1 : call sv_open : ret c
-            ld (sv_h),a : ld ix,HS_ENT : ld bc,4021 : rst 8 : db $9D : ld (sv_n),bc : jr sv_close
+            ld (sv_h),a : ld ix,HS_ENT : ld bc,4021 : rst 8 : db $9D : ld (sv_n),bc
+            ld a,(sv_h) : ld ix,t26_tab : ld bc,480 : rst 8 : db $9D     ; the tables of tracks 26-28 follow (older saves end before them: they stay blank)
+            jr sv_close
 sv_save:    ld b,$0E : call sv_open : ret c                   ; write, create or truncate
             ld (sv_h),a : ld ix,HS_ENT : ld bc,4021 : rst 8 : db $9E
+            ld a,(sv_h) : ld ix,t26_tab : ld bc,480 : rst 8 : db $9E
 sv_close:   ld a,(sv_h) : rst 8 : db $9B : ret
 sv_h:       db 0
 sv_n:       dw 0                                              ; bytes read from the save file
