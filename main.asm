@@ -1589,7 +1589,8 @@ hs_ready:       call hs_on : call pg_ready : jp hs_off
 hs_pre:         call hs_on : call pg_pre : jp hs_off
 hs_binit:       call hs_on : call pg_binit : jp hs_off
 hs_bflip:       call hs_on : call pg_bflip : jp hs_off
-hs_sync:        call hs_on : call pg_sync : jp hs_off
+hs_sync:        call mus_off : call hs_on : call pg_sync : call hs_off      ; no tune while the WiFi and the card are busy
+                jp mus_resume
 hs_pname:       call hs_on : call pg_pname : jp hs_off             ; A = car -> HL = its player name (pn_buf)
 pn_buf:         ds 6
 upd_flag:       db 0                                              ; 1 = the server has a newer build than this one
@@ -1624,7 +1625,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112201",0
+s_ver: db "26112202",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:

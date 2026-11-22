@@ -281,9 +281,12 @@ oc_cur:     ds 160
 oc_cnt:     ds 28
 np_buf:     ds 8
 net_run:    call net_try : ret z                                ; A = 0 when a reply arrived
-            ld a,(nb_all) : or a : call nz,net_retry                ; the machine is busy inside the WiFi command (nothing can animate): say it is trying again
+            ld a,(np_snd) : or a : jr z,.rt
+            ld a,(net_stage) : cp 2 : jr z,.q : cp 3 : jr z,.q    ; sending a time: the request went out, no reply file: the same request again would only repeat it (a second copy on the board)
+.rt:            ld a,(nb_all) : or a : call nz,net_retry                ; the machine is busy inside the WiFi command (nothing can animate): say it is trying again
             call net_try                                       ; the WiFi module sometimes drops a request: once more
             or a : ret
+.q:         ld a,1 : ret
 net_wipe:   xor a : ld (fr_x),a : ld (fr_c),a : ld a,96 : ld (fr_y),a : ld a,255 : ld (fr_w),a : ld a,8 : ld (fr_h),a
             jp fill_rect
 net_retry:  ld a,6 : ld (txt_fg),a                              ; second attempt: the same message again in another colour
@@ -397,6 +400,7 @@ net_sync:   ld a,2 : ld (np_ok),a : xor a : ld (sy_fail),a : ld (ns_t),a : ld (s
             jp sv_save                                          ; synced flags to disk
 net_probe:  ld a,1 : ld (nb_ver),a : call net_clear : call nb_base : call nb_end   ; the version request, as at start-up
             call net_try : ld (np_ok),a : xor a : ld (nb_ver),a : ret
+np_snd:     db 0                                                ; 1 while a time is being sent
 np_ok:      db 2                                                ; 0 = the server answered a read, 1 = it did not, 2 = not probed
 sy_msg:     db 0
 sy_fail:    db 0
@@ -421,7 +425,9 @@ net_post:   call net_clear                                      ; IX = entry of 
             ld bc,10 : call nb_dg
             ld a,l : add a,'0' : ld (de),a : inc de
             call nb_end
+            ld a,1 : ld (np_snd),a
             push ix : call net_run : pop ix
+            push af : xor a : ld (np_snd),a : pop af
             or a : jr z,.rp
             ld a,(net_stage) : cp 2 : jr z,.snt : cp 3 : ret nz      ; the command ran but the reply never arrived (the server was still busy writing): the time did get there, so count it as sent
 .snt:       xor a : ret
