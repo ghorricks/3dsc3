@@ -407,7 +407,9 @@ net_post:   call net_clear                                      ; IX = entry of 
             call nb_base
             push ix : ld hl,s_c3 : call nb_put
             pop ix
-            ld b,5 : push ix
+            push ix : pop hl : ld bc,4 : add hl,bc : ld b,5     ; the name without its trailing blanks (the server pads it again): no %20 in the usual request
+.tl:        ld a,b : dec a : jr z,.tg : ld a,(hl) : cp ' ' : jr nz,.tg : dec hl : dec b : jr .tl
+.tg:        push ix
 .nm:        ld a,(ix+0) : inc ix : cp ' ' : jr nz,.c
             ld a,'%' : ld (de),a : inc de : ld a,'2' : ld (de),a : inc de : ld a,'0'
 .c:         ld (de),a : inc de : djnz .nm
