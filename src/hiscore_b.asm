@@ -410,13 +410,19 @@ s_gt:  db ">",0
 s_off: db "SERVER NOT AVAILABLE",0
 s_nonet: db "NO ONLINE TIMES YET",0
 s_ne:  db "NET ERROR  STAGE ",0
+s_n1:  db "SERVER ANSWERS BUT REFUSED THE TIME",0
+s_n2:  db "NO ANSWER FROM THE SERVER AT ALL",0
 net_show:                                           ; the reason a call failed: stage and error code (hex)
         ld a,3 : ld (txt_fg),a : ld a,3 : ld (txt_col),a : ld a,13 : ld (txt_row),a
         ld hl,s_ne : call print_str
         ld a,(net_stage) : add a,'0' : call print_char
         ld a,' ' : call print_char
         ld a,(net_err) : call .b
-        ld a,' ' : call print_char : ld a,(net_len+1) : call .b : ld a,(net_len)
+        ld a,' ' : call print_char : ld a,(net_len+1) : call .b : ld a,(net_len) : call .b
+        ld a,(net_stage) : cp 2 : ret nz
+        ld a,(np_ok) : cp 2 : ret nc : or a : ld hl,s_n1 : jr z,.m
+        ld hl,s_n2
+.m:     ld a,3 : ld (txt_fg),a : ld c,15 : jp print_cen
 .b:     push af : rrca : rrca : rrca : rrca : call .h : pop af
 .h:     and 15 : add a,'0' : cp ':' : jr c,.p
         add a,7

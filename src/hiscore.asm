@@ -369,7 +369,7 @@ skipl:      ld a,(hl) : or a : ret z
 np_s:       dw 0
 
 ; --- send every record that is not on the server yet (stops at the first failure: offline)
-net_sync:   xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
+net_sync:   ld a,2 : ld (np_ok),a : xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
             ld ix,HS_ENT
 .tr:        ld b,20
 .en:        ld a,(ix+7) : or a : jr nz,.nx
@@ -386,12 +386,18 @@ net_sync:   xor a : ld (sy_fail),a : ld (ns_t),a : ld (sy_msg),a : ld (sy_chg),a
 .nx:        ld de,8 : add ix,de : dec b : jp nz,.en
             ld hl,ns_t : inc (hl) : ld a,(hl) : cp 25 : jr nz,.nj : ld ix,t26_tab      ; tracks 26-28 have their own tables
 .nj:        cp 28 : jp c,.tr
-.end:       nextreg REG_MMU6,HS_PGB                              ; the second page back (net_show lives there)
+.end:       ld a,(sy_fail) : or a : jr z,.e2
+            ld a,(net_stage) : cp 2 : jr nz,.e2                  ; no reply file: is the server answering reads at all? (tells a refused write from no connection)
+            ld a,(net_err) : push af : call net_probe : pop af : ld (net_err),a : ld a,2 : ld (net_stage),a
+.e2:        nextreg REG_MMU6,HS_PGB                              ; the second page back (net_show lives there)
             ld a,(sy_fail) : or a : jr z,.sv
-            call net_show : ld b,150
+            call net_show : ld b,250
 .wt:        push bc : call wait_frame : pop bc : djnz .wt
 .sv:        ld a,(sy_chg) : or a : ret z
             jp sv_save                                          ; synced flags to disk
+net_probe:  ld a,1 : ld (nb_ver),a : call net_clear : call nb_base : call nb_end   ; the version request, as at start-up
+            call net_try : ld (np_ok),a : xor a : ld (nb_ver),a : ret
+np_ok:      db 2                                                ; 0 = the server answered a read, 1 = it did not, 2 = not probed
 sy_msg:     db 0
 sy_fail:    db 0
 sy_chg:     db 0
