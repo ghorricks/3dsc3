@@ -272,7 +272,8 @@ show_results:
         ld a,(phase) : or a : jp z,hs_sync           ; practice records entered: table shown, then to the server, straight on
 .np:    ld a,(phase) : or a : jr z,.p0
         call hs_choice : jp hs_sync       ; race over: NEXT TRACK or MAIN MENU, then the records go to the server
-.p0:    ld a,PROMPT_C : ld (txt_fg),a
+.p0:    ld a,(sy_pend) : or a : call nz,hs_sync          ; practice laps below the table still go to the server
+    ld a,PROMPT_C : ld (txt_fg),a
         ld a,(phase) : or a : jr nz,.pm
         ld a,(laps_total) : or a : jr z,.pm
         ret                                         ; practice then race: the track screen shows PRESS FIRE TO START RACE itself

@@ -117,10 +117,10 @@ pg_check:
         ld h,d : ld l,e : ld bc,9999 : or a : sbc hl,bc : jr nc,.n                   ; no lap time
         ld (hi_t),de
         call hs_rank
-        cp 20 : jr nc,.n
-        call pn_apply : ld a,1 : ld (hc_any),a
+        cp 20 : jr nc,.xq
+        call pn_apply : ld a,1 : ld (hc_any),a : jr .n
+.xq:    call pn_apply                                                                 ; not good enough for the table: queued for the server only
 .n:     ld hl,hc_i : inc (hl) : jr .l
-sy_pend: db 0
 pg_sync:                                            ; send the new records, with the message
         ld a,(sy_pend) : or a : ret z
         xor a : ld (sy_pend),a
@@ -149,7 +149,7 @@ pn_addr:                                            ; HL = this player's name (r
 pn_apply:                                           ; a record was set: enter the player's remembered name in the table
         call pn_addr : ld de,hn_buf : ld b,5
 .cv:    ld a,(hl) : inc hl : push hl : push de : ld e,a : ld d,0 : ld hl,charset : add hl,de : ld a,(hl) : pop de : ld (de),a : inc de : pop hl : djnz .cv
-        ld de,(hi_t) : call hs_rank : cp 20 : ret nc
+        ld de,(hi_t) : call hs_rank : cp 20 : jp nc,xq_add         ; below the table: it still goes to the server
         ld de,(hi_t) : jp hs_insert
 
 charset: db "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 "
@@ -389,6 +389,7 @@ net_sync:   ld a,2 : ld (np_ok),a : xor a : ld (sy_fail),a : ld (ns_t),a : ld (s
 .nx:        ld de,8 : add ix,de : dec b : jp nz,.en
             ld hl,ns_t : inc (hl) : ld a,(hl) : cp 25 : jr nz,.nj : ld ix,t26_tab      ; tracks 26-28 have their own tables
 .nj:        cp 28 : jp c,.tr
+            ld a,(sy_fail) : or a : call z,send_xq
 .end:       ld a,(sy_fail) : or a : jr z,.e2
             ld a,(net_stage) : cp 2 : jr nz,.e2                  ; no reply file: is the server answering reads at all? (tells a refused write from no connection)
             ld a,(net_err) : push af : call net_probe : pop af : ld (net_err),a : ld a,2 : ld (net_stage),a
@@ -400,6 +401,28 @@ net_sync:   ld a,2 : ld (np_ok),a : xor a : ld (sy_fail),a : ld (ns_t),a : ld (s
             jp sv_save                                          ; synced flags to disk
 net_probe:  ld a,1 : ld (nb_ver),a : call net_clear : call nb_base : call nb_end   ; the version request, as at start-up
             call net_try : ld (np_ok),a : xor a : ld (nb_ver),a : ret
+xq_add:                                             ; a lap below the local table: remember name, time and track to send it anyway (the server keeps 1000 per track)
+            ld a,(xq_n) : cp 4 : ret nc
+            ld l,a : ld h,0 : add hl,hl : add hl,hl : add hl,hl : ld de,xq_tab : add hl,de
+            ex de,hl : ld hl,hn_buf : ld bc,5 : ldir
+            ld hl,(hi_t) : ex de,hl : ld (hl),e : inc hl : ld (hl),d : inc hl
+            ld a,(track_idx) : ld (hl),a
+            ld hl,xq_n : inc (hl) : ld a,1 : ld (sy_pend),a
+            ret
+send_xq:    ld a,(xq_n) : or a : ret z                          ; send the queued laps (record layout: name 5, time 2, track number 1)
+            ld b,a : ld ix,xq_tab
+.l:         push bc
+            ld a,(sy_msg) : or a : jr nz,.go
+            inc a : ld (sy_msg),a
+            push ix : call clear_screen : ld a,3 : ld (txt_fg),a : ld hl,s_send : ld c,11 : call print_cen : pop ix
+.go:        ld a,(ix+7) : ld (ns_t),a
+            call net_post : pop bc
+            or a : jr nz,.f
+            ld de,8 : add ix,de : djnz .l
+            xor a : ld (xq_n),a : ret
+.f:         ld (sy_fail),a : ret
+xq_n:       db 0
+xq_tab:     ds 32
 np_snd:     db 0                                                ; 1 while a time is being sent
 np_ok:      db 2                                                ; 0 = the server answered a read, 1 = it did not, 2 = not probed
 sy_msg:     db 0

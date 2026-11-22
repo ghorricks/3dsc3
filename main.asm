@@ -1625,7 +1625,7 @@ hs_exec:        di : push af : ld a,(mus_on) : ld (mus_sv),a : xor a : ld (mus_o
                 ret
 
 ; ------------------------------------------------------------------ data
-s_ver: db "26112202",0
+s_ver: db "26112203",0
 
 ; ---- everything one human car owns: this block is loaded from / stored to the car's context every frame
 pc_block:
@@ -1776,6 +1776,7 @@ menu_res:                                               ; the Next's cursor arro
             ret
 .f:         inc hl : ld a,(hl) : ret
 mr_t:       db (1<<RGT)|(1<<DWN),1<<RGT, (1<<LFT)|(1<<BST),1<<LFT, (1<<ACC)|(1<<RGT),1<<ACC, (1<<DWN)|(1<<LFT),1<<DWN
+sy_pend:    db 0                                        ; 1 = times wait for the server
             ORG $BBBB
             JP mus_isr
 track_tab:

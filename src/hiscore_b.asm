@@ -268,6 +268,7 @@ pg_view:
 .mx1:   ld (hv_max),a
         xor a : ld (sc_off),a : ld (hv_sub),a : inc a : ld (sc_dir),a : ld a,100 : ld (sc_pause),a
         call hv_draw
+        call qr_both
 .dn:    ld a,(hv_n) : or a : jr nz,.pr
         ld a,(oc_ok) : or a : jr z,.srv
         ld hl,s_nonet : ld c,10 : call print_cen       ; the server answered: nobody has posted a time for this track yet
@@ -605,3 +606,17 @@ bs_sh:  ld (bs_x),a : ld e,a : ld a,(bs_dy) : call l2_row_addr
 
 t26_tab: dup 60 : db "3DSC3",$0F,$27,1 : edup                    ; tracks 26-28: three blank tables of 20 records (saved behind the others in 3DSC3.SAV)
 hsb_end:
+
+; --- the QR code on each side of the list: a white 64x64 box with the 25x25 code at 2x2 pixels (x 0-63 and 192-255, y 64-127)
+qr_x:   db 0
+qr_both: xor a : call qr_one
+        ld a,192
+qr_one: ld (qr_x),a : ld (fr_x),a : ld a,64 : ld (fr_y),a : ld (fr_w),a : ld (fr_h),a : ld a,3 : ld (fr_c),a : call fill_rect
+        ld hl,qr_runs
+.l:     ld a,(hl) : cp 255 : ret z
+        add a,a : ld c,a : ld a,(qr_x) : add a,7 : add a,c : ld (fr_x),a : inc hl
+        ld a,(hl) : add a,a : add a,71 : ld (fr_y),a : inc hl
+        ld a,(hl) : add a,a : ld (fr_w),a : inc hl
+        ld a,2 : ld (fr_h),a : xor a : ld (fr_c),a
+        push hl : call fill_rect : pop hl : jr .l
+        INCLUDE "src/qr_runs.inc"
