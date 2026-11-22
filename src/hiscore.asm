@@ -422,8 +422,10 @@ net_post:   call net_clear                                      ; IX = entry of 
             ld a,l : add a,'0' : ld (de),a : inc de
             call nb_end
             push ix : call net_run : pop ix
-            or a : ret nz
-            ld a,($C000) : cp 'E' : jr z,.f                     ; "ERROR: ..." from the server
+            or a : jr z,.rp
+            ld a,(net_stage) : cp 2 : jr z,.snt : cp 3 : ret nz      ; the command ran but the reply never arrived (the server was still busy writing): the time did get there, so count it as sent
+.snt:       xor a : ret
+.rp:            ld a,($C000) : cp 'E' : jr z,.f                     ; "ERROR: ..." from the server
             xor a : ret
 .f:         ld a,4 : ld (net_stage),a : ld a,1 : ret
 s_send:     db "SENDING BEST LAPS TO THE SERVER",0
